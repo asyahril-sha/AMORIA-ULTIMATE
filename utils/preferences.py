@@ -1,361 +1,375 @@
-# tracking/preferences.py
+# utils/performance.py
 # -*- coding: utf-8 -*-
 """
 =============================================================================
 AMORIA - Virtual Human dengan Jiwa
-Preferences Learning - Belajar Preferensi User dari Interaksi
+Performance Monitor - Tracking Response Time & System Performance
 Target Realism 9.9/10
 =============================================================================
 """
 
 import time
-import re
 import logging
-from typing import Dict, List, Optional, Tuple, Set
-from dataclasses import dataclass, field
-from enum import Enum
+from typing import Dict, List, Optional, Any
+from collections import deque
+from functools import wraps
 
 logger = logging.getLogger(__name__)
 
 
-class PreferenceCategory(str, Enum):
-    """Kategori preferensi"""
-    FOOD = "food"
-    ACTIVITY = "activity"
-    POSITION = "position"
-    AREA = "area"
-    COMPLIMENT = "compliment"
-    INTIMACY_STYLE = "intimacy_style"
-    AFTERCARE = "aftercare"
-    COLOR = "color"
-    MUSIC = "music"
-    MOVIE = "movie"
-    PLACE = "place"
-
-
-@dataclass
-class PreferenceItem:
-    """Item preferensi"""
-    name: str
-    score: float = 0.5
-    count: int = 1
-    last_updated: float = field(default_factory=time.time)
-    
-    def update(self, delta: float):
-        self.score = max(0.0, min(1.0, self.score + delta))
-        self.count += 1
-        self.last_updated = time.time()
-    
-    def to_dict(self) -> Dict:
-        return {
-            'name': self.name,
-            'score': self.score,
-            'count': self.count,
-            'last_updated': self.last_updated
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'PreferenceItem':
-        return cls(
-            name=data['name'],
-            score=data.get('score', 0.5),
-            count=data.get('count', 1),
-            last_updated=data.get('last_updated', time.time())
-        )
-
-
-class PreferencesLearner:
+class PerformanceMonitor:
     """
-    Belajar preferensi user dari interaksi
-    - Mendeteksi suka/tidak suka dari chat
-    - Memberi score pada berbagai kategori
-    - Digunakan untuk personalisasi respons
+    Monitor performa sistem AMORIA
+    - Tracking response time
+    - Slow operation detection
+    - Statistics collection
+    - Memory usage tracking
     """
     
-    def __init__(self):
-        self.preferences: Dict[PreferenceCategory, Dict[str, PreferenceItem]] = {
-            category: {} for category in PreferenceCategory
-        }
-        
-        # Pattern untuk deteksi preferensi
-        self.like_patterns = [
-            (r'\b(suka|senang|doain|gemar|favorit)\s+(\w+)', +0.1),
-            (r'\b(enak|nikmat|mantap|keren)\s+(\w+)', +0.1),
-            (r'\b(paling suka|favoritku|kesukaan)\s+(\w+)', +0.15),
-            (r'\b(aku suka|gue suka)\s+(\w+)', +0.1),
-        ]
-        
-        self.dislike_patterns = [
-            (r'\b(gak suka|nggak suka|tidak suka|ga suka)\s+(\w+)', -0.1),
-            (r'\b(benci|gak doain|ga doain)\s+(\w+)', -0.15),
-            (r'\b(ga enak|gak enak|tidak enak)\s+(\w+)', -0.1),
-            (r'\b(ga suka banget|gak suka banget)\s+(\w+)', -0.15),
-        ]
-        
-        # Keyword mapping ke kategori
-        self.category_keywords = {
-            PreferenceCategory.FOOD: ['makan', 'masak', 'makanan', 'minum', 'minuman', 'kopi', 'teh', 'jus', 'bakso', 'mie', 'nasi'],
-            PreferenceCategory.ACTIVITY: ['jalan', 'nonton', 'olahraga', 'main', 'game', 'travel', 'liburan'],
-            PreferenceCategory.POSITION: ['posisi', 'missionary', 'doggy', 'cowgirl', 'spooning', 'tidur', 'berdiri', 'duduk'],
-            PreferenceCategory.AREA: ['leher', 'punggung', 'paha', 'dada', 'pipi', 'telinga', 'bibir', 'pinggang'],
-            PreferenceCategory.COMPLIMENT: ['cantik', 'ganteng', 'keren', 'manis', 'seksi', 'hot', 'pintar'],
-            PreferenceCategory.INTIMACY_STYLE: ['lembut', 'cepat', 'pelan', 'intens', 'romantis', 'liar'],
-            PreferenceCategory.AFTERCARE: ['cuddle', 'peluk', 'ngobrol', 'pijat', 'makan', 'tidur', 'jalan'],
-            PreferenceCategory.COLOR: ['merah', 'biru', 'hitam', 'putih', 'kuning', 'hijau', 'ungu', 'pink'],
-            PreferenceCategory.MUSIC: ['pop', 'rock', 'jazz', 'dangdut', 'klasik', 'edm'],
-            PreferenceCategory.MOVIE: ['horor', 'komedi', 'romantis', 'action', 'drama'],
-            PreferenceCategory.PLACE: ['pantai', 'gunung', 'mall', 'kafe', 'restoran', 'taman', 'hotel'],
-        }
-        
-        logger.info("✅ PreferencesLearner initialized")
-    
-    def extract_from_message(self, message: str) -> List[Tuple[PreferenceCategory, str, float]]:
+    def __init__(self, slow_threshold: float = 5.0):
         """
-        Ekstrak preferensi dari pesan
+        Args:
+            slow_threshold: Threshold untuk slow operation (detik)
+        """
+        self.slow_threshold = slow_threshold
+        self.start_time = time.time()
+        
+        # Response time tracking
+        self.response_times: List[float] = []
+        self.response_times_max: deque = deque(maxlen=100)
+        self.slow_operations: List[Dict] = []
+        
+        # Operation counters
+        self.operation_counts: Dict[str, int] = {}
+        self.error_counts: Dict[str, int] = {}
+        
+        # Performance metrics
+        self.metrics: Dict[str, Any] = {
+            'total_operations': 0,
+            'total_errors': 0,
+            'response_time': {
+                'avg': 0.0,
+                'max': 0.0,
+                'min': 0.0,
+                'p95': 0.0,
+                'p99': 0.0
+            },
+            'memory_usage_mb': 0.0
+        }
+        
+        # History
+        self.history: deque = deque(maxlen=1000)
+        
+        logger.info("✅ PerformanceMonitor initialized (threshold: {}s)", slow_threshold)
+    
+    def record_response_time(self, duration: float, operation: str = "unknown") -> None:
+        """
+        Rekam response time untuk operasi
         
         Args:
-            message: Pesan user
-        
-        Returns:
-            List of (category, item, delta)
+            duration: Waktu eksekusi dalam detik
+            operation: Nama operasi
         """
-        msg_lower = message.lower()
-        updates = []
+        self.response_times.append(duration)
+        self.response_times_max.append(duration)
+        self.operation_counts[operation] = self.operation_counts.get(operation, 0) + 1
+        self.metrics['total_operations'] += 1
         
-        # Deteksi suka/tidak suka
-        for pattern, delta in self.like_patterns:
-            match = re.search(pattern, msg_lower)
-            if match:
-                item = self._extract_item(msg_lower, match)
-                if item:
-                    category = self._categorize_item(item)
-                    if category:
-                        updates.append((category, item, delta))
-                        logger.debug(f"Detected like: {category.value} -> {item} (+{delta})")
+        # Update metrics
+        self._update_metrics()
         
-        for pattern, delta in self.dislike_patterns:
-            match = re.search(pattern, msg_lower)
-            if match:
-                item = self._extract_item(msg_lower, match)
-                if item:
-                    category = self._categorize_item(item)
-                    if category:
-                        updates.append((category, item, delta))
-                        logger.debug(f"Detected dislike: {category.value} -> {item} ({delta})")
+        # Check for slow operation
+        if duration > self.slow_threshold:
+            slow_op = {
+                'timestamp': time.time(),
+                'operation': operation,
+                'duration': round(duration, 2),
+                'threshold': self.slow_threshold
+            }
+            self.slow_operations.append(slow_op)
+            self.history.append(slow_op)
+            
+            # Keep only last 100 slow operations
+            if len(self.slow_operations) > 100:
+                self.slow_operations = self.slow_operations[-100:]
+            
+            logger.warning(f"⚠️ Slow operation detected: {operation} took {duration:.2f}s")
+    
+    def record_error(self, error_type: str, operation: str = "unknown") -> None:
+        """
+        Rekam error yang terjadi
         
-        # Deteksi dari konteks intim (climax = suka posisi/area)
-        if 'climax' in msg_lower or 'enak' in msg_lower:
-            # Ini indikasi positif untuk aktivitas saat ini
+        Args:
+            error_type: Tipe error
+            operation: Operasi saat error terjadi
+        """
+        self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
+        self.metrics['total_errors'] += 1
+        
+        self.history.append({
+            'timestamp': time.time(),
+            'type': 'error',
+            'error_type': error_type,
+            'operation': operation
+        })
+    
+    def _update_metrics(self) -> None:
+        """Update metrics dari data yang ada"""
+        if not self.response_times:
+            return
+        
+        sorted_times = sorted(self.response_times)
+        total = len(sorted_times)
+        
+        # Calculate percentiles
+        p95_index = int(total * 0.95)
+        p99_index = int(total * 0.99)
+        
+        self.metrics['response_time'] = {
+            'avg': round(sum(self.response_times) / total, 2),
+            'max': round(max(self.response_times), 2),
+            'min': round(min(self.response_times), 2),
+            'p95': round(sorted_times[p95_index] if p95_index < total else sorted_times[-1], 2),
+            'p99': round(sorted_times[p99_index] if p99_index < total else sorted_times[-1], 2)
+        }
+    
+    def update_memory_usage(self) -> None:
+        """Update memory usage metric"""
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss / (1024 * 1024)
+            self.metrics['memory_usage_mb'] = round(memory_mb, 2)
+        except ImportError:
+            # psutil not available, skip
             pass
-        
-        return updates
+        except Exception as e:
+            logger.debug(f"Failed to get memory usage: {e}")
     
-    def _extract_item(self, message: str, match) -> Optional[str]:
-        """Ekstrak item dari match"""
-        if match.groups():
-            # Ambil kata setelah pattern
-            for group in match.groups():
-                if group and len(group) > 2:
-                    return group.strip()
-        
-        # Cari kata benda setelah kata kunci
-        words = message.split()
-        for i, word in enumerate(words):
-            if word in ['suka', 'doain', 'favorit', 'enak', 'keren']:
-                if i + 1 < len(words):
-                    return words[i + 1].strip('.,!?')
-        
-        return None
-    
-    def _categorize_item(self, item: str) -> Optional[PreferenceCategory]:
-        """Kategorikan item berdasarkan keyword"""
-        item_lower = item.lower()
-        
-        for category, keywords in self.category_keywords.items():
-            for keyword in keywords:
-                if keyword in item_lower or item_lower in keyword:
-                    return category
-        
-        return None
-    
-    def update_preference(self, category: PreferenceCategory, item: str, delta: float):
+    def get_stats(self) -> Dict[str, Any]:
         """
-        Update preferensi
-        
-        Args:
-            category: Kategori preferensi
-            item: Nama item
-            delta: Perubahan score (-0.2 sampai +0.2)
-        """
-        if category not in self.preferences:
-            self.preferences[category] = {}
-        
-        if item in self.preferences[category]:
-            self.preferences[category][item].update(delta)
-        else:
-            self.preferences[category][item] = PreferenceItem(item, 0.5 + delta)
-        
-        logger.debug(f"Preference updated: {category.value} -> {item} = {self.preferences[category][item].score:.2f}")
-    
-    def get_top_preferences(
-        self,
-        category: Optional[PreferenceCategory] = None,
-        limit: int = 5
-    ) -> List[Tuple[str, float]]:
-        """
-        Dapatkan preferensi teratas
-        
-        Args:
-            category: Kategori (opsional)
-            limit: Jumlah maksimal
+        Dapatkan statistik performa lengkap
         
         Returns:
-            List of (item, score)
+            Dictionary dengan semua statistik
         """
-        items = []
+        self.update_memory_usage()
         
-        if category:
-            items = [(name, item.score) for name, item in self.preferences.get(category, {}).items()]
-        else:
-            for cat_items in self.preferences.values():
-                items.extend([(name, item.score) for name, item in cat_items.items()])
+        uptime = time.time() - self.start_time
+        uptime_hours = int(uptime / 3600)
+        uptime_minutes = int((uptime % 3600) / 60)
         
-        items.sort(key=lambda x: x[1], reverse=True)
-        return items[:limit]
+        total_ops = self.metrics['total_operations']
+        total_err = self.metrics['total_errors']
+        
+        return {
+            'uptime': uptime,
+            'uptime_formatted': f"{uptime_hours}j {uptime_minutes}m",
+            'start_time': self.start_time,
+            'total_operations': total_ops,
+            'total_errors': total_err,
+            'error_rate': round(total_err / max(1, total_ops), 4),
+            'response_time': self.metrics['response_time'],
+            'memory_usage_mb': self.metrics['memory_usage_mb'],
+            'operation_counts': dict(self.operation_counts),
+            'error_counts': dict(self.error_counts),
+            'slow_operations': self.slow_operations[-10:],  # Last 10 slow ops
+            'recent_events': list(self.history)[-20:]  # Last 20 events
+        }
     
-    def get_preference(self, category: PreferenceCategory, item: str) -> float:
-        """Dapatkan score preferensi"""
-        if category in self.preferences and item in self.preferences[category]:
-            return self.preferences[category][item].score
-        return 0.5
-    
-    def get_favorite(self, category: PreferenceCategory) -> Optional[str]:
-        """Dapatkan favorit di kategori tertentu"""
-        items = self.get_top_preferences(category, 1)
-        return items[0][0] if items else None
-    
-    def get_preferences_for_prompt(self, limit: int = 10) -> str:
+    def get_health_status(self) -> Dict[str, Any]:
         """
-        Dapatkan preferensi untuk prompt AI
-        
-        Args:
-            limit: Jumlah maksimal per kategori
+        Dapatkan status kesehatan untuk health check
         
         Returns:
-            String preferensi
+            Dictionary status kesehatan
         """
-        if not any(self.preferences.values()):
-            return ""
+        stats = self.get_stats()
         
-        lines = ["💖 **PREFERENSI USER:**"]
+        # Determine health status
+        health = "healthy"
+        issues = []
         
-        for category in PreferenceCategory:
-            top = self.get_top_preferences(category, limit)
-            if top:
-                items = [f"{item} ({score:.0%})" for item, score in top[:3]]
-                lines.append(f"• {category.value}: {', '.join(items)}")
+        if stats['error_rate'] > 0.1:
+            health = "degraded"
+            issues.append(f"High error rate: {stats['error_rate']:.1%}")
+        
+        if stats['response_time']['avg'] > 5.0:
+            health = "degraded"
+            issues.append(f"High response time: {stats['response_time']['avg']:.1f}s")
+        
+        if stats['response_time']['p95'] > 10.0:
+            health = "unhealthy"
+            issues.append(f"Very high p95 response time: {stats['response_time']['p95']:.1f}s")
+        
+        return {
+            'status': health,
+            'issues': issues,
+            'uptime': stats['uptime_formatted'],
+            'total_operations': stats['total_operations'],
+            'error_rate': stats['error_rate'],
+            'avg_response_time': stats['response_time']['avg'],
+            'memory_usage_mb': stats['memory_usage_mb']
+        }
+    
+    def reset(self) -> None:
+        """Reset semua data monitor"""
+        self.response_times = []
+        self.response_times_max = deque(maxlen=100)
+        self.slow_operations = []
+        self.operation_counts = {}
+        self.error_counts = {}
+        self.history = deque(maxlen=1000)
+        self.metrics = {
+            'total_operations': 0,
+            'total_errors': 0,
+            'response_time': {'avg': 0.0, 'max': 0.0, 'min': 0.0, 'p95': 0.0, 'p99': 0.0},
+            'memory_usage_mb': 0.0
+        }
+        self.start_time = time.time()
+        logger.info("PerformanceMonitor reset")
+    
+    def format_stats(self) -> str:
+        """
+        Format statistik untuk display
+        
+        Returns:
+            String formatted stats
+        """
+        stats = self.get_stats()
+        
+        lines = [
+            "📊 **PERFORMANCE STATS**",
+            "",
+            f"⏱️ **Uptime:** {stats['uptime_formatted']}",
+            f"📈 **Total Operations:** {stats['total_operations']}",
+            f"❌ **Total Errors:** {stats['total_errors']} ({stats['error_rate']:.1%})",
+            f"💾 **Memory:** {stats['memory_usage_mb']} MB",
+            "",
+            "⚡ **Response Time:**",
+            f"   • Average: {stats['response_time']['avg']}s",
+            f"   • Max: {stats['response_time']['max']}s",
+            f"   • Min: {stats['response_time']['min']}s",
+            f"   • p95: {stats['response_time']['p95']}s",
+            f"   • p99: {stats['response_time']['p99']}s",
+        ]
+        
+        if stats['operation_counts']:
+            lines.append("")
+            lines.append("📋 **Operation Counts:**")
+            for op, count in sorted(stats['operation_counts'].items(), key=lambda x: x[1], reverse=True)[:5]:
+                lines.append(f"   • {op}: {count}")
+        
+        if stats['slow_operations']:
+            lines.append("")
+            lines.append("🐢 **Slow Operations (last 5):**")
+            for op in stats['slow_operations'][-5:]:
+                lines.append(f"   • {op['operation']}: {op['duration']}s")
         
         return "\n".join(lines)
+
+
+# =============================================================================
+# DECORATORS
+# =============================================================================
+
+def measure_time(operation: str = None):
+    """
+    Decorator untuk mengukur waktu eksekusi fungsi synchronously
     
-    def get_personalization_context(self) -> str:
-        """
-        Dapatkan konteks personalisasi untuk prompt
-        
-        Returns:
-            String konteks
-        """
-        lines = []
-        
-        # Makanan favorit
-        favorite_food = self.get_favorite(PreferenceCategory.FOOD)
-        if favorite_food:
-            lines.append(f"🍽️ Suka {favorite_food}")
-        
-        # Aktivitas favorit
-        favorite_activity = self.get_favorite(PreferenceCategory.ACTIVITY)
-        if favorite_activity:
-            lines.append(f"🎯 Suka {favorite_activity}")
-        
-        # Posisi favorit
-        favorite_position = self.get_favorite(PreferenceCategory.POSITION)
-        if favorite_position:
-            lines.append(f"💕 Posisi favorit: {favorite_position}")
-        
-        # Area sensitif favorit
-        favorite_area = self.get_favorite(PreferenceCategory.AREA)
-        if favorite_area:
-            lines.append(f"💋 Area sensitif: {favorite_area}")
-        
-        # Gaya intim favorit
-        favorite_style = self.get_favorite(PreferenceCategory.INTIMACY_STYLE)
-        if favorite_style:
-            lines.append(f"🔥 Gaya intim: {favorite_style}")
-        
-        # Aftercare favorit
-        favorite_aftercare = self.get_favorite(PreferenceCategory.AFTERCARE)
-        if favorite_aftercare:
-            lines.append(f"💝 Aftercare: {favorite_aftercare}")
-        
-        if not lines:
-            return ""
-        
-        return "📌 **PERSONALISASI:**\n" + "\n".join(lines)
+    Args:
+        operation: Nama operasi (default: nama fungsi)
     
-    def record_climax(self, position: Optional[str] = None, area: Optional[str] = None):
-        """
-        Rekam climax untuk update preferensi
-        Climax adalah indikator kuat bahwa user suka posisi/area tersebut
-        """
-        if position:
-            self.update_preference(PreferenceCategory.POSITION, position, +0.15)
-        
-        if area:
-            self.update_preference(PreferenceCategory.AREA, area, +0.15)
-    
-    def record_compliment(self, compliment: str):
-        """
-        Rekam pujian yang diberikan user
-        """
-        self.update_preference(PreferenceCategory.COMPLIMENT, compliment, +0.1)
-    
-    def get_state(self) -> Dict:
-        """Dapatkan state untuk disimpan"""
-        state = {}
-        for category, items in self.preferences.items():
-            state[category.value] = {
-                name: item.to_dict() for name, item in items.items()
-            }
-        return state
-    
-    def load_state(self, state: Dict):
-        """Load state dari database"""
-        for category_name, items in state.items():
+    Usage:
+        @measure_time("process_message")
+        def my_function():
+            pass
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            monitor = get_performance_monitor()
+            start = time.time()
             try:
-                category = PreferenceCategory(category_name)
-                self.preferences[category] = {
-                    name: PreferenceItem.from_dict(data) for name, data in items.items()
-                }
-            except ValueError:
-                continue
+                result = func(*args, **kwargs)
+                duration = time.time() - start
+                op_name = operation or func.__name__
+                monitor.record_response_time(duration, op_name)
+                return result
+            except Exception as e:
+                duration = time.time() - start
+                op_name = operation or func.__name__
+                monitor.record_error(type(e).__name__, op_name)
+                raise
+        return wrapper
+    return decorator
+
+
+def async_measure_time(operation: str = None):
+    """
+    Decorator untuk mengukur waktu eksekusi fungsi async
     
-    def clear(self):
-        """Clear semua preferensi"""
-        self.preferences = {category: {} for category in PreferenceCategory}
-        logger.info("Preferences cleared")
+    Args:
+        operation: Nama operasi (default: nama fungsi)
     
-    def get_stats(self) -> Dict:
-        """Dapatkan statistik preferensi"""
-        total_items = sum(len(items) for items in self.preferences.values())
-        return {
-            'total_items': total_items,
-            'by_category': {
-                category.value: len(items) for category, items in self.preferences.items()
-            }
-        }
+    Usage:
+        @async_measure_time("process_message")
+        async def my_function():
+            pass
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            monitor = get_performance_monitor()
+            start = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                duration = time.time() - start
+                op_name = operation or func.__name__
+                monitor.record_response_time(duration, op_name)
+                return result
+            except Exception as e:
+                duration = time.time() - start
+                op_name = operation or func.__name__
+                monitor.record_error(type(e).__name__, op_name)
+                raise
+        return wrapper
+    return decorator
+
+
+# =============================================================================
+# SINGLETON INSTANCE
+# =============================================================================
+
+_performance_monitor: Optional[PerformanceMonitor] = None
+
+
+def get_performance_monitor() -> PerformanceMonitor:
+    """
+    Dapatkan instance PerformanceMonitor (singleton)
+    
+    Returns:
+        PerformanceMonitor instance
+    """
+    global _performance_monitor
+    if _performance_monitor is None:
+        _performance_monitor = PerformanceMonitor()
+    return _performance_monitor
+
+
+def reset_performance_monitor():
+    """Reset performance monitor instance"""
+    global _performance_monitor
+    if _performance_monitor:
+        _performance_monitor.reset()
+    else:
+        _performance_monitor = PerformanceMonitor()
 
 
 __all__ = [
-    'PreferencesLearner',
-    'PreferenceCategory',
-    'PreferenceItem'
+    'PerformanceMonitor',
+    'measure_time',
+    'async_measure_time',
+    'get_performance_monitor',
+    'reset_performance_monitor',
 ]
