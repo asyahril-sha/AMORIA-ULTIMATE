@@ -1,7 +1,7 @@
-# final_fix.py
+# fix_database_final.py
 # -*- coding: utf-8 -*-
 """
-Final fix untuk menambahkan kolom time_data ke state_tracker
+Final Database Fix - Menambahkan semua kolom yang hilang
 """
 
 import sqlite3
@@ -9,42 +9,18 @@ import os
 from pathlib import Path
 
 
-def find_database_path():
-    """Cari database di berbagai kemungkinan path"""
-    possible_paths = [
-        Path("data/amoria.db"),
-        Path("/app/data/amoria.db"),
-        Path("./amoria.db"),
-        Path("amoria.db"),
-        Path(os.getenv("DATABASE_PATH", "")),
-    ]
+def fix_all_tables():
+    """Perbaiki semua tabel database"""
     
-    for path in possible_paths:
-        if path and path.exists():
-            return path
+    print("=" * 70)
+    print("💜 AMORIA - FINAL DATABASE FIX")
+    print("=" * 70)
     
-    return None
-
-
-def add_time_data_column():
-    """Tambahkan kolom time_data ke state_tracker"""
+    # Path database untuk Railway
+    db_path = Path("/app/data/amoria.db")
     
-    print("=" * 60)
-    print("🔧 FINAL FIX: Adding time_data column")
-    print("=" * 60)
-    
-    # Cari database
-    db_path = find_database_path()
-    
-    if not db_path:
-        print("❌ Database tidak ditemukan!")
-        print("\nMencoba membuat database baru...")
-        
-        # Buat direktori data
-        Path("data").mkdir(parents=True, exist_ok=True)
-        db_path = Path("data/amoria.db")
-        
-        print(f"📁 Database baru akan dibuat di: {db_path}")
+    # Buat direktori data jika belum ada
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     
     print(f"📁 Database path: {db_path}")
     
@@ -53,12 +29,18 @@ def add_time_data_column():
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
         
+        print("✅ Connected to database\n")
+        
+        # =========================================================
+        # 1. FIX STATE_TRACKER TABLE
+        # =========================================================
+        print("📊 1. MEMPERBAIKI TABEL state_tracker")
+        print("-" * 50)
+        
         # Cek apakah tabel state_tracker ada
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='state_tracker'")
         if not cursor.fetchone():
             print("⚠️ Tabel state_tracker belum ada, membuat...")
-            
-            # Buat tabel state_tracker dengan semua kolom
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS state_tracker (
                     registration_id TEXT PRIMARY KEY,
@@ -88,66 +70,186 @@ def add_time_data_column():
                 )
             ''')
             conn.commit()
-            print("✅ Tabel state_tracker dibuat dengan kolom time_data")
+            print("✅ Tabel state_tracker dibuat")
         
+        # Cek kolom yang ada
+        cursor.execute("PRAGMA table_info(state_tracker)")
+        existing = [col[1] for col in cursor.fetchall()]
+        
+        # Kolom yang diperlukan untuk state_tracker
+        state_columns = {
+            'time_data': 'TEXT',
+            'clothing_bot_outer_bottom': 'TEXT',
+            'clothing_user_outer_bottom': 'TEXT',
+            'clothing_history': 'TEXT',
+            'family_status': 'TEXT',
+            'family_location': 'TEXT',
+            'family_activity': 'TEXT',
+            'family_estimate_return': 'TEXT',
+            'time_override_history': 'TEXT',
+            'current_time': 'TEXT',
+            'position_bot': 'TEXT',
+            'position_user': 'TEXT',
+            'position_relative': 'TEXT',
+        }
+        
+        added = 0
+        for col, col_type in state_columns.items():
+            if col not in existing:
+                try:
+                    cursor.execute(f"ALTER TABLE state_tracker ADD COLUMN {col} {col_type}")
+                    print(f"  ✅ Added: {col}")
+                    added += 1
+                except Exception as e:
+                    print(f"  ⚠️ Failed: {col} - {e}")
+        
+        if added > 0:
+            conn.commit()
+            print(f"\n✅ Added {added} column(s) to state_tracker")
         else:
-            # Cek kolom yang ada
-            cursor.execute("PRAGMA table_info(state_tracker)")
-            columns = [col[1] for col in cursor.fetchall()]
+            print("✅ All columns already exist in state_tracker")
+        
+        # =========================================================
+        # 2. FIX REGISTRATIONS TABLE
+        # =========================================================
+        print("\n📊 2. MEMPERBAIKI TABEL registrations")
+        print("-" * 50)
+        
+        cursor.execute("PRAGMA table_info(registrations)")
+        existing = [col[1] for col in cursor.fetchall()]
+        
+        # Kolom yang diperlukan untuk registrations
+        reg_columns = {
+            'weighted_memory_score': 'REAL DEFAULT 0.5',
+            'weighted_memory_data': "TEXT DEFAULT '{}'",
+            'emotional_bias': "TEXT DEFAULT '{}'",
+            'secondary_emotion': 'TEXT',
+            'secondary_arousal': 'INTEGER DEFAULT 0',
+            'secondary_emotion_reason': 'TEXT',
+            'physical_sensation': "TEXT DEFAULT 'biasa aja'",
+            'physical_hunger': 'INTEGER DEFAULT 30',
+            'physical_thirst': 'INTEGER DEFAULT 30',
+            'physical_temperature': 'INTEGER DEFAULT 25',
+            'stamina_bot': 'INTEGER DEFAULT 100',
+            'stamina_user': 'INTEGER DEFAULT 100',
+            'in_intimacy_cycle': 'BOOLEAN DEFAULT 0',
+            'intimacy_cycle_count': 'INTEGER DEFAULT 0',
+            'last_climax_time': 'REAL',
+            'cooldown_until': 'REAL',
+            'bot_identity': "TEXT DEFAULT '{}'",
+            'user_identity': "TEXT DEFAULT '{}'",
+            'bot_photo': 'TEXT',
+            'intimacy_level': 'INTEGER DEFAULT 0',
+            'emotional_state': "TEXT DEFAULT '{}'",
+            'last_active': 'REAL',
+        }
+        
+        added = 0
+        for col, col_type in reg_columns.items():
+            if col not in existing:
+                try:
+                    cursor.execute(f"ALTER TABLE registrations ADD COLUMN {col} {col_type}")
+                    print(f"  ✅ Added: {col}")
+                    added += 1
+                except Exception as e:
+                    print(f"  ⚠️ Failed: {col} - {e}")
+        
+        if added > 0:
+            conn.commit()
+            print(f"\n✅ Added {added} column(s) to registrations")
+        else:
+            print("✅ All columns already exist in registrations")
+        
+        # =========================================================
+        # 3. FIX LONG_TERM_MEMORY TABLE
+        # =========================================================
+        print("\n📊 3. MEMPERBAIKI TABEL long_term_memory")
+        print("-" * 50)
+        
+        # Cek apakah tabel long_term_memory ada
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='long_term_memory'")
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(long_term_memory)")
+            existing = [col[1] for col in cursor.fetchall()]
             
-            print(f"📊 Existing columns: {columns}")
+            if 'status' not in existing:
+                try:
+                    cursor.execute("ALTER TABLE long_term_memory ADD COLUMN status TEXT")
+                    print("  ✅ Added: status")
+                    added += 1
+                except Exception as e:
+                    print(f"  ⚠️ Failed: status - {e}")
             
-            # Tambahkan kolom yang hilang
-            columns_to_add = {
-                'time_data': 'TEXT',
-                'clothing_bot_outer_bottom': 'TEXT',
-                'clothing_user_outer_bottom': 'TEXT',
-                'clothing_history': 'TEXT',
-                'family_status': 'TEXT',
-                'family_location': 'TEXT',
-                'family_activity': 'TEXT',
-                'family_estimate_return': 'TEXT',
-                'time_override_history': 'TEXT',
-                'current_time': 'TEXT',
-                'position_bot': 'TEXT',
-                'position_user': 'TEXT',
-                'position_relative': 'TEXT',
-            }
-            
-            added = 0
-            for col, col_type in columns_to_add.items():
-                if col not in columns:
-                    try:
-                        cursor.execute(f"ALTER TABLE state_tracker ADD COLUMN {col} {col_type}")
-                        print(f"  ✅ Added column: {col}")
-                        added += 1
-                    except Exception as e:
-                        print(f"  ⚠️ Failed: {col} - {e}")
+            if 'emotional_tag' not in existing:
+                try:
+                    cursor.execute("ALTER TABLE long_term_memory ADD COLUMN emotional_tag TEXT")
+                    print("  ✅ Added: emotional_tag")
+                    added += 1
+                except Exception as e:
+                    print(f"  ⚠️ Failed: emotional_tag - {e}")
             
             if added > 0:
                 conn.commit()
-                print(f"\n✅ Added {added} column(s)")
+                print(f"\n✅ Added {added} column(s) to long_term_memory")
             else:
-                print("\n✅ No missing columns")
-        
-        # Verifikasi final
-        cursor.execute("PRAGMA table_info(state_tracker)")
-        columns = [col[1] for col in cursor.fetchall()]
-        
-        print(f"\n📊 Final columns ({len(columns)}):")
-        for col in columns:
-            print(f"   • {col}")
-        
-        if 'time_data' in columns:
-            print("\n✅ SUCCESS: time_data column exists!")
+                print("✅ All columns already exist in long_term_memory")
         else:
-            print("\n❌ ERROR: time_data column still missing!")
+            print("⚠️ Table long_term_memory not found, will be created when needed")
+        
+        # =========================================================
+        # 4. VERIFIKASI FINAL
+        # =========================================================
+        print("\n📊 4. VERIFIKASI DATABASE")
+        print("-" * 50)
+        
+        # Cek state_tracker
+        cursor.execute("PRAGMA table_info(state_tracker)")
+        state_cols = [col[1] for col in cursor.fetchall()]
+        print(f"\nstate_tracker: {len(state_cols)} columns")
+        
+        if 'time_data' in state_cols:
+            print("  ✅ time_data: OK")
+        else:
+            print("  ❌ time_data: MISSING!")
+        
+        # Cek registrations
+        cursor.execute("PRAGMA table_info(registrations)")
+        reg_cols = [col[1] for col in cursor.fetchall()]
+        print(f"\nregistrations: {len(reg_cols)} columns")
+        
+        critical = ['weighted_memory_score', 'emotional_bias', 'secondary_emotion', 
+                    'physical_sensation', 'physical_hunger', 'stamina_bot']
+        for col in critical:
+            if col in reg_cols:
+                print(f"  ✅ {col}: OK")
+            else:
+                print(f"  ❌ {col}: MISSING!")
+        
+        # =========================================================
+        # 5. DATABASE INFO
+        # =========================================================
+        print("\n📊 5. DATABASE INFO")
+        print("-" * 50)
+        
+        # Hitung rows
+        cursor.execute("SELECT COUNT(*) FROM registrations")
+        reg_count = cursor.fetchone()[0]
+        print(f"registrations: {reg_count} rows")
+        
+        cursor.execute("SELECT COUNT(*) FROM state_tracker")
+        state_count = cursor.fetchone()[0]
+        print(f"state_tracker: {state_count} rows")
+        
+        # Database size
+        if db_path.exists():
+            size_mb = db_path.stat().st_size / (1024 * 1024)
+            print(f"Database size: {size_mb:.2f} MB")
         
         conn.close()
         
-        print("\n" + "=" * 60)
-        print("✅ FINAL FIX COMPLETE!")
-        print("=" * 60)
+        print("\n" + "=" * 70)
+        print("✅ DATABASE FIX COMPLETE!")
+        print("=" * 70)
         
         return True
         
@@ -159,9 +261,9 @@ def add_time_data_column():
 
 
 if __name__ == "__main__":
-    success = add_time_data_column()
+    success = fix_all_tables()
     
     if success:
-        print("\n🎉 Database siap digunakan!")
+        print("\n🎉 Database siap digunakan! Bot bisa dijalankan.")
     else:
         print("\n❌ Fix gagal, periksa error di atas.")
