@@ -1,476 +1,294 @@
-# bot/middleware.py
+# intimacy/cycle.py
 # -*- coding: utf-8 -*-
 """
 =============================================================================
 AMORIA - Virtual Human dengan Jiwa
-Bot Middleware - Rate Limiting, Logging, Metrics, Error Handling
+Intimacy Cycle - Siklus 10 → 11 → 12 → 10 (Berulang)
 Target Realism 9.9/10
 =============================================================================
 """
 
 import time
 import logging
-from typing import Dict, Callable, Awaitable, Optional, Any
-from collections import defaultdict
-from functools import wraps
+from typing import Dict, Optional, Tuple
+from enum import Enum
 from datetime import datetime
 
-from telegram import Update
-from telegram.ext import ContextTypes
-
 from config import settings
-from utils.performance import get_performance_monitor
-from utils.logger import logger
 
-# =============================================================================
-# RATE LIMITER
-# =============================================================================
+logger = logging.getLogger(__name__)
 
-class RateLimiter:
+
+class CyclePhase(str, Enum):
+    """Fase dalam siklus intim"""
+    WAITING = "waiting"          # Menunggu inisiatif user (Level 10)
+    UNDRESSING = "undressing"    # Proses membuka pakaian (masih Level 10)
+    SOUL_BOUNDED = "soul_bounded"  # Soul Bounded (Level 11)
+    AFTERCARE = "aftercare"       # Aftercare (Level 12)
+    COOLDOWN = "cooldown"         # Cooldown setelah aftercare
+
+
+class IntimacyCycle:
     """
-    Rate limiter untuk mencegah spam
-    - Limit per user per interval
-    - Cooldown untuk command tertentu
+    Siklus intim yang berulang:
+    Level 10 (Waiting) → Undressing → Level 11 (Soul Bounded) → Level 12 (Aftercare) → Level 10 (Waiting)
     """
     
-    def __init__(self, default_limit: int = 30, default_interval: int = 60):
-        """
-        Args:
-            default_limit: Jumlah maksimal request per interval
-            default_interval: Interval dalam detik
-        """
-        self.default_limit = default_limit
-        self.default_interval = default_interval
-        self.user_requests: Dict[int, list] = defaultdict(list)
-        self.command_cooldown: Dict[str, Dict[int, float]] = defaultdict(dict)
+    def __init__(self):
+        self.phase = CyclePhase.WAITING
+        self.cycle_count = 0
+        self.current_cycle_chats = 0
+        self.undressing_step = 0
+        self.undressing_history = []
+        self.climax_count_this_cycle = 0
+        self.cooldown_until = 0.0
+        self.last_climax_time = 0.0
+        self.aftercare_completed = False
         
-        # Cooldown khusus untuk command tertentu (detik)
-        self.command_cooldowns = {
-            '/start': 5,
-            '/end': 10,
-            '/close': 5,
-            '/character-stop': 10,
-            '/fwb-end': 10,
-            '/backup': 30,
-            '/recover': 60,
-        }
-        
-        logger.info("✅ RateLimiter initialized")
+        logger.info("✅ IntimacyCycle 9.9 initialized")
     
-    def is_rate_limited(self, user_id: int, command: Optional[str] = None) -> tuple:
+    def start_cycle(self) -> Dict:
         """
-        Cek apakah user terkena rate limit
-        
-        Args:
-            user_id: ID user
-            command: Command yang dieksekusi (opsional)
+        Mulai siklus intim baru
         
         Returns:
-            (is_limited, wait_time, message)
+            Dict dengan info siklus
         """
-        now = time.time()
+        self.cycle_count += 1
+        self.phase = CyclePhase.UNDRESSING
+        self.current_cycle_chats = 0
+        self.undressing_step = 0
+        self.undressing_history = []
+        self.climax_count_this_cycle = 0
+        self.aftercare_completed = False
         
-        # Check command cooldown
-        if command and command in self.command_cooldowns:
-            cooldown = self.command_cooldowns[command]
-            last_used = self.command_cooldown[command].get(user_id, 0)
-            time_since = now - last_used
+        logger.info(f"🔥 Intimacy cycle started (#{self.cycle_count})")
+        
+        return {
+            'phase': self.phase.value,
+            'cycle_count': self.cycle_count,
+            'message': "Memulai siklus intim..."
+        }
+    
+    def record_undressing(self, item: str, layer: str) -> Dict:
+        """
+        Rekam proses membuka pakaian
+        
+        Args:
+            item: Item yang dilepas (daster, bra, dll)
+            layer: Lapisan (outer_top, inner_top, dll)
+        
+        Returns:
+            Dict dengan info undressing
+        """
+        self.undressing_step += 1
+        self.undressing_history.append({
+            'timestamp': time.time(),
+            'step': self.undressing_step,
+            'item': item,
+            'layer': layer
+        })
+        
+        # Setelah 3-5 langkah undressing, masuk ke Soul Bounded
+        if self.undressing_step >= 4 or (self.undressing_step >= 3 and self._is_fully_undressed()):
+            self.phase = CyclePhase.SOUL_BOUNDED
+            self.current_cycle_chats = 0
+            logger.info(f"💕 Entered Soul Bounded phase")
+        
+        return {
+            'step': self.undressing_step,
+            'item': item,
+            'layer': layer,
+            'phase': self.phase.value
+        }
+    
+    def _is_fully_undressed(self) -> bool:
+        """Cek apakah sudah telanjang total"""
+        required_layers = {'outer_top', 'inner_top', 'outer_bottom', 'inner_bottom'}
+        undressed_layers = {h['layer'] for h in self.undressing_history}
+        return required_layers.issubset(undressed_layers)
+    
+    def record_climax(self) -> Dict:
+        """
+        Rekam climax dalam siklus
+        
+        Returns:
+            Dict dengan info climax
+        """
+        self.climax_count_this_cycle += 1
+        self.last_climax_time = time.time()
+        
+        logger.info(f"💦 Climax recorded (#{self.climax_count_this_cycle} in this cycle)")
+        
+        # Jika sudah mencapai 3 climax, siap masuk aftercare
+        if self.climax_count_this_cycle >= 3 and self.phase == CyclePhase.SOUL_BOUNDED:
+            self._prepare_for_aftercare()
+        
+        return {
+            'climax_count': self.climax_count_this_cycle,
+            'phase': self.phase.value
+        }
+    
+    def _prepare_for_aftercare(self):
+        """Siapkan untuk masuk aftercare"""
+        # Akan masuk aftercare setelah mencapai target chat atau sudah cukup climax
+        pass
+    
+    def add_chat(self) -> Dict:
+        """
+        Tambah chat dalam siklus
+        
+        Returns:
+            Dict dengan info update
+        """
+        self.current_cycle_chats += 1
+        
+        # Soul Bounded: 30-50 chat
+        if self.phase == CyclePhase.SOUL_BOUNDED:
+            min_chats = settings.level.level_11_min - settings.level.level_10_target
+            max_chats = settings.level.level_11_max - settings.level.level_10_target
             
-            if time_since < cooldown:
-                wait_time = int(cooldown - time_since)
-                return True, wait_time, f"Command ini bisa digunakan lagi dalam {wait_time} detik."
-        
-        # Check general rate limit
-        requests = self.user_requests[user_id]
-        requests = [t for t in requests if now - t < self.default_interval]
-        self.user_requests[user_id] = requests
-        
-        if len(requests) >= self.default_limit:
-            wait_time = int(self.default_interval - (now - requests[0]))
-            return True, wait_time, f"Terlalu banyak pesan. Tunggu {wait_time} detik."
-        
-        # Add current request
-        self.user_requests[user_id].append(now)
-        
-        return False, 0, ""
-    
-    def record_command(self, user_id: int, command: str):
-        """Rekam penggunaan command untuk cooldown"""
-        if command in self.command_cooldowns:
-            self.command_cooldown[command][user_id] = time.time()
-    
-    def clear_user(self, user_id: int):
-        """Hapus semua data user"""
-        self.user_requests.pop(user_id, None)
-        for cmd in self.command_cooldown:
-            self.command_cooldown[cmd].pop(user_id, None)
-
-
-# =============================================================================
-# METRICS MIDDLEWARE
-# =============================================================================
-
-class MetricsMiddleware:
-    """
-    Middleware untuk tracking metrics
-    - Response time
-    - Command usage
-    - Error tracking
-    """
-    
-    def __init__(self):
-        self.metrics = get_performance_monitor()
-        logger.info("✅ MetricsMiddleware initialized")
-    
-    async def __call__(
-        self,
-        update: Update,
-        context: ContextTypes.DEFAULT_TYPE,
-        next_handler: Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
-    ):
-        """Process update dengan metrics tracking"""
-        start_time = time.time()
-        operation = "unknown"
-        
-        try:
-            # Detect operation type
-            if update.message:
-                if update.message.text and update.message.text.startswith('/'):
-                    operation = update.message.text.split()[0]
-                else:
-                    operation = "message"
-            elif update.callback_query:
-                operation = "callback"
-            elif update.inline_query:
-                operation = "inline"
+            if self.current_cycle_chats >= max_chats:
+                # Pindah ke aftercare
+                self.phase = CyclePhase.AFTERCARE
+                self.current_cycle_chats = 0
+                logger.info(f"💤 Entered Aftercare phase after {self.current_cycle_chats} chats")
+                return {'phase_changed': True, 'new_phase': 'aftercare', 'message': "Masuk aftercare..."}
             
-            # Track command usage
-            if operation.startswith('/'):
-                self.metrics.record_command_usage(operation)
+            elif self.current_cycle_chats >= min_chats and self.climax_count_this_cycle >= 3:
+                # Bisa pindah ke aftercare lebih awal jika sudah cukup climax
+                self.phase = CyclePhase.AFTERCARE
+                self.current_cycle_chats = 0
+                logger.info(f"💤 Entered Aftercare phase after {self.current_cycle_chats} chats and {self.climax_count_this_cycle} climax")
+                return {'phase_changed': True, 'new_phase': 'aftercare', 'message': "Masuk aftercare..."}
+        
+        # Aftercare: 10 chat
+        elif self.phase == CyclePhase.AFTERCARE:
+            aftercare_duration = settings.level.level_12_max - settings.level.level_11_max
             
-            # Process
-            await next_handler(update, context)
-            
-            # Record response time
-            duration = time.time() - start_time
-            self.metrics.record_response_time(duration, operation)
-            
-        except Exception as e:
-            duration = time.time() - start_time
-            self.metrics.record_error(type(e).__name__, operation)
-            self.metrics.record_response_time(duration, f"{operation}_error")
-            raise
-
-
-# =============================================================================
-# LOGGING MIDDLEWARE
-# =============================================================================
-
-class LoggingMiddleware:
-    """
-    Middleware untuk logging update
-    - Log semua update yang masuk
-    - Log error
-    - Log performance
-    """
+            if self.current_cycle_chats >= aftercare_duration:
+                # Kembali ke waiting (Level 10)
+                self.phase = CyclePhase.COOLDOWN
+                self.aftercare_completed = True
+                # Set cooldown 3 jam
+                self.cooldown_until = time.time() + (3 * 3600)
+                logger.info(f"⏰ Aftercare completed, entering cooldown until {self.cooldown_until}")
+                return {'phase_changed': True, 'new_phase': 'cooldown', 'message': "Aftercare selesai, memasuki cooldown..."}
+        
+        # Cooldown: 3 jam
+        elif self.phase == CyclePhase.COOLDOWN:
+            if time.time() >= self.cooldown_until:
+                self.phase = CyclePhase.WAITING
+                # Reset siklus
+                self.current_cycle_chats = 0
+                self.undressing_step = 0
+                self.undressing_history = []
+                self.climax_count_this_cycle = 0
+                self.aftercare_completed = False
+                logger.info(f"✅ Cooldown completed, back to waiting phase")
+                return {'phase_changed': True, 'new_phase': 'waiting', 'message': "Cooldown selesai, siap untuk siklus berikutnya"}
+        
+        return {'phase_changed': False}
     
-    def __init__(self, log_level: str = "INFO"):
-        self.log_level = log_level
-        logger.info(f"✅ LoggingMiddleware initialized (level: {log_level})")
+    def get_remaining_cooldown_minutes(self) -> int:
+        """Dapatkan sisa cooldown dalam menit"""
+        if self.cooldown_until > 0:
+            remaining = self.cooldown_until - time.time()
+            if remaining > 0:
+                return int(remaining / 60)
+        return 0
     
-    async def __call__(
-        self,
-        update: Update,
-        context: ContextTypes.DEFAULT_TYPE,
-        next_handler: Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
-    ):
-        """Process update dengan logging"""
-        start_time = time.time()
-        
-        # Log incoming update
-        await self._log_incoming(update, context)
-        
-        try:
-            await next_handler(update, context)
-            
-            # Log completion
-            duration = time.time() - start_time
-            await self._log_completion(update, context, duration)
-            
-        except Exception as e:
-            duration = time.time() - start_time
-            await self._log_error(update, context, e, duration)
-            raise
+    def get_phase_description(self) -> str:
+        """Dapatkan deskripsi fase saat ini"""
+        descriptions = {
+            CyclePhase.WAITING: "Menunggu inisiatif kamu...",
+            CyclePhase.UNDRESSING: "Membuka pakaian...",
+            CyclePhase.SOUL_BOUNDED: "Soul Bounded - puncak intim sesungguhnya",
+            CyclePhase.AFTERCARE: "Aftercare - butuh kehangatan",
+            CyclePhase.COOLDOWN: f"Cooldown - butuh istirahat ({self.get_remaining_cooldown_minutes()} menit lagi)"
+        }
+        return descriptions.get(self.phase, "")
     
-    async def _log_incoming(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Log incoming update"""
-        user = update.effective_user
-        user_id = user.id if user else "unknown"
-        user_name = user.first_name if user else "unknown"
+    def can_start_intimacy(self) -> Tuple[bool, str]:
+        """
+        Cek apakah bisa memulai intim
         
-        if update.message:
-            if update.message.text:
-                text = update.message.text[:100]
-                logger.info(f"📨 [{user_id}] {user_name}: {text}")
-            elif update.message.photo:
-                logger.info(f"📸 [{user_id}] {user_name}: sent photo")
-            elif update.message.sticker:
-                logger.info(f"🎨 [{user_id}] {user_name}: sent sticker")
-            else:
-                logger.info(f"📨 [{user_id}] {user_name}: {update.message.content_type}")
+        Returns:
+            (can_start, reason)
+        """
+        if self.phase == CyclePhase.SOUL_BOUNDED:
+            return False, "Sedang dalam sesi intim"
         
-        elif update.callback_query:
-            data = update.callback_query.data[:100]
-            logger.info(f"🔘 [{user_id}] {user_name}: callback {data}")
+        if self.phase == CyclePhase.AFTERCARE:
+            return False, "Sedang aftercare, butuh kehangatan dulu"
         
-        elif update.inline_query:
-            query = update.inline_query.query[:100]
-            logger.info(f"🔍 [{user_id}] {user_name}: inline query {query}")
+        if self.phase == CyclePhase.COOLDOWN:
+            remaining = self.get_remaining_cooldown_minutes()
+            return False, f"Masih cooldown ({remaining} menit lagi)"
+        
+        if self.phase == CyclePhase.UNDRESSING:
+            return False, "Sedang dalam proses membuka pakaian"
+        
+        return True, "Siap"
     
-    async def _log_completion(self, update: Update, context: ContextTypes.DEFAULT_TYPE, duration: float):
-        """Log completion update"""
-        user = update.effective_user
-        user_id = user.id if user else "unknown"
-        
-        if duration > 5:
-            logger.warning(f"🐌 Slow response for {user_id}: {duration:.2f}s")
-        elif duration > 2:
-            logger.debug(f"⏱️ Response time for {user_id}: {duration:.2f}s")
+    def reset(self):
+        """Reset siklus"""
+        self.phase = CyclePhase.WAITING
+        self.cycle_count = 0
+        self.current_cycle_chats = 0
+        self.undressing_step = 0
+        self.undressing_history = []
+        self.climax_count_this_cycle = 0
+        self.cooldown_until = 0
+        self.last_climax_time = 0
+        self.aftercare_completed = False
+        logger.info("Intimacy cycle reset")
     
-    async def _log_error(self, update: Update, context: ContextTypes.DEFAULT_TYPE, error: Exception, duration: float):
-        """Log error"""
-        user = update.effective_user
-        user_id = user.id if user else "unknown"
-        
-        logger.error(f"❌ Error for {user_id}: {type(error).__name__}: {error} (took {duration:.2f}s)")
-
-
-# =============================================================================
-# ERROR HANDLER MIDDLEWARE
-# =============================================================================
-
-class ErrorHandlerMiddleware:
-    """
-    Middleware untuk error handling
-    - Catch unhandled exceptions
-    - Send friendly error messages to user
-    - Log errors for debugging
-    """
+    def get_state(self) -> Dict:
+        """Dapatkan state untuk disimpan"""
+        return {
+            'phase': self.phase.value,
+            'cycle_count': self.cycle_count,
+            'current_cycle_chats': self.current_cycle_chats,
+            'undressing_step': self.undressing_step,
+            'undressing_history': self.undressing_history,
+            'climax_count_this_cycle': self.climax_count_this_cycle,
+            'cooldown_until': self.cooldown_until,
+            'last_climax_time': self.last_climax_time,
+            'aftercare_completed': self.aftercare_completed
+        }
     
-    async def __call__(
-        self,
-        update: Update,
-        context: ContextTypes.DEFAULT_TYPE,
-        next_handler: Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
-    ):
-        """Process update dengan error handling"""
-        try:
-            await next_handler(update, context)
-            
-        except Exception as e:
-            logger.exception(f"Unhandled error: {e}")
-            
-            # Try to send error message to user
-            try:
-                if update and update.effective_message:
-                    await update.effective_message.reply_text(
-                        "❌ **Terjadi kesalahan**\n\n"
-                        "Maaf, terjadi error internal. Tim pengembang sudah diberitahu.\n\n"
-                        "Silakan coba lagi nanti, atau gunakan `/help` untuk bantuan.",
-                        parse_mode='HTML'
-                    )
-            except Exception:
-                pass
-            
-            # Re-raise for global handler
-            raise
-
-
-# =============================================================================
-# SESSION MIDDLEWARE
-# =============================================================================
-
-class SessionMiddleware:
-    """
-    Middleware untuk session management
-    - Check session validity
-    - Auto-renew session
-    - Track active sessions
-    """
+    def load_state(self, state: Dict):
+        """Load state dari database"""
+        self.phase = CyclePhase(state.get('phase', 'waiting'))
+        self.cycle_count = state.get('cycle_count', 0)
+        self.current_cycle_chats = state.get('current_cycle_chats', 0)
+        self.undressing_step = state.get('undressing_step', 0)
+        self.undressing_history = state.get('undressing_history', [])
+        self.climax_count_this_cycle = state.get('climax_count_this_cycle', 0)
+        self.cooldown_until = state.get('cooldown_until', 0)
+        self.last_climax_time = state.get('last_climax_time', 0)
+        self.aftercare_completed = state.get('aftercare_completed', False)
     
-    def __init__(self):
-        self.session_timeout = 3600  # 1 hour
-        self.active_sessions: Dict[int, float] = {}
-        logger.info(f"✅ SessionMiddleware initialized (timeout: {self.session_timeout}s)")
-    
-    async def __call__(
-        self,
-        update: Update,
-        context: ContextTypes.DEFAULT_TYPE,
-        next_handler: Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
-    ):
-        """Process update dengan session management"""
-        user = update.effective_user
-        user_id = user.id if user else None
+    def format_status(self) -> str:
+        """Format status untuk display"""
+        lines = [
+            f"💕 **Siklus Intim #{self.cycle_count}**",
+            f"📌 Fase: {self.phase.value.upper()}",
+            f"📝 {self.get_phase_description()}",
+            f"📊 Chat dalam siklus ini: {self.current_cycle_chats}",
+        ]
         
-        if user_id:
-            # Update active session timestamp
-            self.active_sessions[user_id] = time.time()
-            
-            # Check if session is still valid
-            if user_id in context.user_data:
-                last_activity = context.user_data.get('last_activity', 0)
-                if time.time() - last_activity > self.session_timeout:
-                    # Session expired
-                    await self._handle_expired_session(update, context)
-            
-            # Update last activity
-            context.user_data['last_activity'] = time.time()
+        if self.climax_count_this_cycle > 0:
+            lines.append(f"💦 Climax dalam siklus ini: {self.climax_count_this_cycle}")
         
-        await next_handler(update, context)
-    
-    async def _handle_expired_session(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle expired session"""
-        user_id = update.effective_user.id if update.effective_user else None
+        if self.undressing_history:
+            lines.append("")
+            lines.append("👗 **Pakaian yang sudah dilepas:**")
+            for h in self.undressing_history[-5:]:
+                lines.append(f"   • {h['item']}")
         
-        logger.info(f"Session expired for user {user_id}")
-        
-        # Clear user data
-        context.user_data.clear()
-        
-        # Notify user if it's a message
-        if update and update.message:
-            await update.message.reply_text(
-                "⏰ **Session telah berakhir**\n\n"
-                "Karena tidak ada aktivitas dalam 1 jam, session kamu telah di-reset.\n\n"
-                "Ketik `/start` untuk memulai lagi.",
-                parse_mode='HTML'
-            )
+        return "\n".join(lines)
 
 
-# =============================================================================
-# MAIN MIDDLEWARE CHAIN
-# =============================================================================
-
-class MiddlewareChain:
-    """
-    Chain untuk semua middleware
-    - Execute middleware in order
-    - Pass update through all layers
-    """
-    
-    def __init__(self):
-        self.middlewares = []
-        logger.info("✅ MiddlewareChain initialized")
-    
-    def add(self, middleware):
-        """Tambah middleware ke chain"""
-        self.middlewares.append(middleware)
-        logger.debug(f"Added middleware: {middleware.__class__.__name__}")
-    
-    async def process(
-        self,
-        update: Update,
-        context: ContextTypes.DEFAULT_TYPE,
-        handler: Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
-    ):
-        """Process update melalui semua middleware"""
-        # Build chain
-        current = handler
-        
-        for middleware in reversed(self.middlewares):
-            current = self._wrap(middleware, current)
-        
-        await current(update, context)
-    
-    def _wrap(self, middleware, next_handler):
-        """Wrap handler dengan middleware"""
-        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-            await middleware(update, context, next_handler)
-        return wrapper
-
-
-# =============================================================================
-# FACTORY FUNCTIONS
-# =============================================================================
-
-_rate_limiter = None
-_metrics_middleware = None
-_logging_middleware = None
-_error_handler = None
-_session_middleware = None
-_middleware_chain = None
-
-
-def get_rate_limiter() -> RateLimiter:
-    """Dapatkan instance RateLimiter (singleton)"""
-    global _rate_limiter
-    if _rate_limiter is None:
-        _rate_limiter = RateLimiter()
-    return _rate_limiter
-
-
-def get_metrics_middleware() -> MetricsMiddleware:
-    """Dapatkan instance MetricsMiddleware (singleton)"""
-    global _metrics_middleware
-    if _metrics_middleware is None:
-        _metrics_middleware = MetricsMiddleware()
-    return _metrics_middleware
-
-
-def get_logging_middleware() -> LoggingMiddleware:
-    """Dapatkan instance LoggingMiddleware (singleton)"""
-    global _logging_middleware
-    if _logging_middleware is None:
-        _logging_middleware = LoggingMiddleware()
-    return _logging_middleware
-
-
-def get_error_handler() -> ErrorHandlerMiddleware:
-    """Dapatkan instance ErrorHandlerMiddleware (singleton)"""
-    global _error_handler
-    if _error_handler is None:
-        _error_handler = ErrorHandlerMiddleware()
-    return _error_handler
-
-
-def get_session_middleware() -> SessionMiddleware:
-    """Dapatkan instance SessionMiddleware (singleton)"""
-    global _session_middleware
-    if _session_middleware is None:
-        _session_middleware = SessionMiddleware()
-    return _session_middleware
-
-
-def get_middleware_chain() -> MiddlewareChain:
-    """Dapatkan instance MiddlewareChain dengan semua middleware"""
-    global _middleware_chain
-    if _middleware_chain is None:
-        _middleware_chain = MiddlewareChain()
-        
-        # Add middleware in order
-        _middleware_chain.add(get_error_handler())
-        _middleware_chain.add(get_logging_middleware())
-        _middleware_chain.add(get_session_middleware())
-        _middleware_chain.add(get_metrics_middleware())
-        # Rate limiter optional - bisa ditambahkan nanti
-        
-        logger.info("✅ Middleware chain built")
-    
-    return _middleware_chain
-
-
-__all__ = [
-    'RateLimiter',
-    'get_rate_limiter',
-    'MetricsMiddleware',
-    'get_metrics_middleware',
-    'LoggingMiddleware',
-    'get_logging_middleware',
-    'ErrorHandlerMiddleware',
-    'get_error_handler',
-    'SessionMiddleware',
-    'get_session_middleware',
-    'MiddlewareChain',
-    'get_middleware_chain',
-]
+__all__ = ['IntimacyCycle', 'CyclePhase']
