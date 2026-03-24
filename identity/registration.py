@@ -39,23 +39,21 @@ class CharacterRegistration:
     """
     Registrasi karakter - satu dunia virtual dengan identitas bot dan user
     Format ID: {ROLE}-{SEQUENCE}
+    
+    URUTAN FIELD: Field tanpa default HARUS di atas field dengan default
     """
     
-    # Identitas
+    # ===== FIELD TANPA DEFAULT (WAJIB DIISI) =====
     id: str
     role: CharacterRole
     sequence: int
-    status: CharacterStatus = CharacterStatus.ACTIVE
-    
-    # Identity objects (menggunakan class dari file terpisah)
     bot: BotIdentity
     user: UserIdentity
     
-    # Progress
+    # ===== FIELD DENGAN DEFAULT =====
+    status: CharacterStatus = CharacterStatus.ACTIVE
     level: int = 1
     total_chats: int = 0
-    
-    # Intimacy Cycle
     in_intimacy_cycle: bool = False
     intimacy_cycle_count: int = 0
     last_climax_time: Optional[float] = None
@@ -347,9 +345,9 @@ class CharacterRegistration:
             id=db_reg.id,
             role=db_reg.role,
             sequence=db_reg.sequence,
-            status=db_reg.status,
             bot=bot,
             user=user,
+            status=db_reg.status,
             level=db_reg.level,
             total_chats=db_reg.total_chats,
             in_intimacy_cycle=db_reg.in_intimacy_cycle,
