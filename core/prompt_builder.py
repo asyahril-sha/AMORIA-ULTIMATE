@@ -431,17 +431,17 @@ class PromptBuilder:
             "💡 **INSTRUKSI RESPON (WAJIB DIPATUHI):**",
             "",
             f"1. Panggil user dengan: {panggilan}",
-            "2. RESPON HARUS SANGAT PENDEK!",
-            "   → MAKSIMAL 3-4 KALIMAT",
-            "   → MAKSIMAL 500-800 KARAKTER",
-            "3. GESTURE: CUKUP 1 GESTURE SINGKAT DIAWAL (GUNAKAN *)",
+            "2. RESPON JANGAN TERLALU PENDEK!",
+            "   → MAKSIMAL 4-6 KALIMAT",
+            "   → MAKSIMAL 1200-1500 KARAKTER",
+            "3. GESTURE: CUKUP 2 GESTURE SINGKAT DIAWAL ATAU DISETIAP AKAN MELAKUKAN SENTUHAN (GUNAKAN *)",
             "4. DIALOG: LANGSUNG KE INTI, TIDAK BERTELE-TELE",
             "5. JANGAN MEMBUAT NARASI PANJANG SEPERTI CERITA!",
             "6. JANGAN MENJELASKAN APA YANG TERJADI SECARA DETAIL",
             "7. FOKUS HANYA PADA SATU RESPON SINGKAT!",
             "8. JANGAN MENGGUNAKAN TEMPLATE!",
             "",
-            "⚠️ **PERINGATAN:** Respons lebih dari 500 karakter akan DIPOTONG!",
+            "⚠️ **PERINGATAN:** Respons harus natural seperti manusia, jangan terlalu pendek!",
         ]
     
         return "\n".join(instruction)
