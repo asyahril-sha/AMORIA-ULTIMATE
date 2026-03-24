@@ -132,6 +132,15 @@ class AIEngine:
         )
         
         state = await self.repo.load_state(self.registration.id)
+
+        # 🔥 SAFETY: kalau state belum ada
+        if not state:
+            state = StatePersistence(registration_id=self.registration.id)
+
+        # 🔥 TIME SYSTEM (REALISTIC)
+        state.time.advance()
+        state.time.detect_and_apply(user_message)
+
         # ===== MEMORY RECALL (PENTING) =====
         relevant_memories = [
             m for m in long_term_memory
@@ -144,6 +153,10 @@ class AIEngine:
         
         # ===== 3. UPDATE STATE DARI PESAN =====
         await self._update_state_from_message(user_message, state, intent_analysis)
+
+        # 🔥 TAMBAHKAN DI SINI
+        time_feel = state.time.get_time_feel()
+        current_time = state.time.current
         
         # ===== 4. UPDATE EMOTIONAL FLOW =====
         user_arousal = self.user.arousal if hasattr(self.user, 'arousal') else 0
