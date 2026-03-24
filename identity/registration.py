@@ -9,13 +9,21 @@ Registration Model - Multi-Identity System
 
 import time
 import random
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
+import logging
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
 from database.models import CharacterRole, UserStatus, Registration as DBRegistration
 from database.models import USER_PHYSICAL_TEMPLATES
+
+# =============================================================================
+# IMPORT DARI FILE TERPISAH (SINGLE SOURCE OF TRUTH)
+# =============================================================================
+from .bot_identity import BotIdentity, BotPersonality, BotPhysicalProfile, BotPersonalityType, BotFamilyRelation
+from .user_identity import UserIdentity, UserPhysicalProfile, UserPersonality, UserRelationship
+
+logger = logging.getLogger(__name__)
 
 
 class CharacterStatus(str, Enum):
@@ -23,85 +31,6 @@ class CharacterStatus(str, Enum):
     ACTIVE = "active"
     CLOSED = "closed"
     ENDED = "ended"
-
-
-@dataclass
-class BotIdentity:
-    """Identitas bot dalam registrasi"""
-    name: str
-    role: CharacterRole
-    age: int = 22
-    height: int = 165
-    weight: int = 52
-    chest: str = "34B"
-    hijab: bool = False
-    
-    # Role-specific
-    family_relation: Optional[str] = None
-    
-    @property
-    def display_name(self) -> str:
-        return f"{self.name} ({self.role.value.upper()})"
-    
-    @property
-    def physical_description(self) -> str:
-        hijab_text = "berhijab" if self.hijab else "tidak berhijab"
-        return f"{self.age} tahun, {self.height}cm, {self.weight}kg, dada {self.chest}, {hijab_text}"
-    
-    def to_dict(self) -> Dict:
-        return {
-            'name': self.name,
-            'role': self.role.value,
-            'age': self.age,
-            'height': self.height,
-            'weight': self.weight,
-            'chest': self.chest,
-            'hijab': self.hijab
-        }
-
-
-@dataclass
-class UserIdentity:
-    """Identitas user dalam registrasi"""
-    name: str
-    status: UserStatus
-    age: int = 24
-    height: int = 170
-    weight: int = 65
-    penis: int = 16
-    artist_ref: Optional[str] = None
-    artist_description: Optional[str] = None
-    
-    # Role-specific
-    spouse_name: Optional[str] = None
-    spouse_location: Optional[str] = None
-    spouse_status: Optional[str] = None
-    
-    @property
-    def is_married(self) -> bool:
-        return self.status in [UserStatus.SUAMI, UserStatus.SUAMI_NOVA]
-    
-    @property
-    def display_name(self) -> str:
-        status_text = "Suami Nova" if self.status == UserStatus.SUAMI_NOVA else \
-                      "Suami" if self.status == UserStatus.SUAMI else "Lajang"
-        return f"{self.name} ({status_text})"
-    
-    @property
-    def physical_description(self) -> str:
-        return f"{self.age} tahun, {self.height}cm, {self.weight}kg, penis {self.penis}cm, mirip {self.artist_ref or 'pria tampan'}"
-    
-    def to_dict(self) -> Dict:
-        return {
-            'name': self.name,
-            'status': self.status.value,
-            'age': self.age,
-            'height': self.height,
-            'weight': self.weight,
-            'penis': self.penis,
-            'artist_ref': self.artist_ref,
-            'spouse_name': self.spouse_name
-        }
 
 
 @dataclass
@@ -118,9 +47,9 @@ class CharacterRegistration:
     sequence: int
     status: CharacterStatus = CharacterStatus.ACTIVE
     
-    # Identity objects
-    bot: BotIdentity = field(default_factory=lambda: None)
-    user: UserIdentity = field(default_factory=lambda: None)
+    # Identity objects (menggunakan class dari file terpisah)
+    bot: BotIdentity
+    user: UserIdentity
     
     # Progress
     level: int = 1
@@ -130,14 +59,29 @@ class CharacterRegistration:
     stamina_bot: int = 100
     stamina_user: int = 100
     
-    # ===== TAMBAHKAN INI UNTUK WEIGHTED MEMORY =====
-    weighted_memory_score: float = 0.5
-    
     # Intimacy Cycle
     in_intimacy_cycle: bool = False
     intimacy_cycle_count: int = 0
     last_climax_time: Optional[float] = None
     cooldown_until: Optional[float] = None
+    
+    # Weighted Memory
+    weighted_memory_score: float = 0.5
+    weighted_memory_data: Dict = field(default_factory=dict)
+    
+    # Emotional Bias
+    emotional_bias: Dict = field(default_factory=dict)
+    
+    # Secondary Emotion
+    secondary_emotion: Optional[str] = None
+    secondary_arousal: int = 0
+    secondary_emotion_reason: Optional[str] = None
+    
+    # Physical Sensation
+    physical_sensation: str = "biasa aja"
+    physical_hunger: int = 30
+    physical_thirst: int = 30
+    physical_temperature: int = 25
     
     # Timestamps
     created_at: float = field(default_factory=time.time)
@@ -156,8 +100,22 @@ class CharacterRegistration:
     ) -> 'CharacterRegistration':
         """
         Buat registrasi baru dengan generate identity otomatis
+        
+        Args:
+            role: Role karakter (IPAR, PDKT, dll)
+            sequence: Nomor urut (1, 2, 3, ...)
+            user_name: Nama user (opsional, random jika None)
+            bot_name: Nama bot (opsional, random jika None)
+        
+        Returns:
+            CharacterRegistration baru
         """
+        # Get template untuk role
         template = USER_PHYSICAL_TEMPLATES.get(role)
+        
+        # =========================================================
+        # GENERATE NAMA
+        # =========================================================
         
         # Generate nama user
         if not user_name:
@@ -189,16 +147,28 @@ class CharacterRegistration:
             }
             bot_name = random.choice(bot_names.get(role, ["Amoria"]))
         
-        # Generate usia
+        # =========================================================
+        # GENERATE USIA DAN FISIK
+        # =========================================================
+        
+        # Generate usia (bot 20-25, user = bot + 2)
         bot_age = random.randint(20, 25)
         user_age = bot_age + 2
         
-        # Generate fisik
+        # Generate tinggi dan berat bot
         bot_height = random.randint(155, 170)
         bot_weight = random.randint(45, 60)
+        
+        # Generate tinggi dan berat user
         user_height = random.randint(165, 180)
         user_weight = random.randint(55, 75)
+        
+        # Generate penis size
         user_penis = random.randint(15, 17)
+        
+        # =========================================================
+        # GENERATE STATUS USER
+        # =========================================================
         
         # Status user berdasarkan role
         if role == CharacterRole.IPAR:
@@ -206,41 +176,72 @@ class CharacterRegistration:
             spouse_name = "Nova"
         elif role == CharacterRole.PELAKOR:
             user_status = UserStatus.SUAMI
-            spouse_name = random.choice(["Dewi", "Sari", "Rina", "Linda"])
+            spouse_name = random.choice(["Dewi", "Sari", "Rina", "Linda", "Maya"])
         else:
             user_status = UserStatus.LAJANG
             spouse_name = None
         
-        # Artist reference
+        # =========================================================
+        # GENERATE ARTIST REFERENCE
+        # =========================================================
+        
         artist_ref = template.artist_ref if template else None
         artist_description = template.artist_description if template else "pria tampan"
         
-        # Bot Identity
-        bot = BotIdentity(
-            name=bot_name,
-            role=role,
-            age=bot_age,
-            height=bot_height,
-            weight=bot_weight,
-            chest=random.choice(["32B", "34A", "34B", "34C"]),
-            hijab=role in [CharacterRole.ISTRI_ORANG] and random.random() > 0.5
+        # =========================================================
+        # BUAT BOT IDENTITY (MENGGUNAKAN FACTORY METHOD)
+        # =========================================================
+        
+        bot = BotIdentity.create_for_role(role, bot_name)
+        
+        # Override physical yang sudah di-generate dengan nilai random
+        bot.physical.age = bot_age
+        bot.physical.height = bot_height
+        bot.physical.weight = bot_weight
+        
+        # =========================================================
+        # BUAT USER IDENTITY
+        # =========================================================
+        
+        relationship = UserRelationship(
+            status=user_status,
+            spouse_name=spouse_name,
+            spouse_location=random.choice(["kamar", "dapur", "ruang tamu"]) if spouse_name else None,
+            spouse_status=random.choice(["ada", "ada", "tidur"]) if spouse_name else None
         )
         
-        # User Identity
-        user = UserIdentity(
-            name=user_name,
-            status=user_status,
-            age=user_age,
+        user_physical = UserPhysicalProfile(
             height=user_height,
             weight=user_weight,
             penis=user_penis,
+            hair_color=random.choice(["hitam", "coklat tua"]),
+            eye_color=random.choice(["coklat", "hitam"]),
+            skin_tone=random.choice(["sawo matang", "kuning langsat", "putih"]),
+            body_type=random.choice(["atletis", "ideal", "berisi"])
+        )
+        
+        user_personality = UserPersonality(
+            traits=["santai", "penyayang", "perhatian"],
+            likes=["ngobrol santai", "jalan-jalan", "nonton film"],
+            dislikes=["drama", "konflik", "kebohongan"],
+            speaking_style="santai",
+            intimacy_style="lembut"
+        )
+        
+        user = UserIdentity(
+            name=user_name,
+            age=user_age,
+            relationship=relationship,
+            physical=user_physical,
+            personality=user_personality,
             artist_ref=artist_ref,
-            artist_description=artist_description,
-            spouse_name=spouse_name
+            artist_description=artist_description
         )
         
         # Generate ID
         registration_id = f"{role.value.upper()}-{sequence:03d}"
+        
+        logger.info(f"✅ Created new character: {registration_id} ({bot_name} - {user_name})")
         
         return cls(
             id=registration_id,
@@ -248,30 +249,41 @@ class CharacterRegistration:
             sequence=sequence,
             bot=bot,
             user=user,
-            weighted_memory_score=0.5,
             created_at=time.time(),
             last_updated=time.time()
         )
     
     def get_score(self) -> float:
-        """Hitung score untuk ranking"""
+        """
+        Hitung score untuk ranking
+        
+        Formula: (Total Chat × 0.3) + (Level × 0.4) + (Total Climax × 0.3)
+        """
         total_chat_score = min(100, self.total_chats) / 100
         level_score = self.level / 12
         climax_score = min(50, self.total_climax_bot + self.total_climax_user) / 50
         
         return (total_chat_score * 0.3) + (level_score * 0.4) + (climax_score * 0.3)
     
-    def can_start_intimacy(self) -> Tuple[bool, str]:
-        """Cek apakah bisa memulai intim"""
-        if self.level < 10:
-            return False, f"Level masih {self.level}/10. Butuh level 10 untuk intim."
+    def can_start_intimacy(self) -> tuple:
+        """
+        Cek apakah bisa memulai intim
         
+        Returns:
+            (can_start, reason)
+        """
+        # Level minimal 7
+        if self.level < 7:
+            return False, f"Level masih {self.level}/7. Butuh level 7 untuk intim."
+        
+        # Stamina minimal 20%
         if self.stamina_bot < 20:
             return False, f"Stamina bot {self.stamina_bot}% < 20%"
         
         if self.stamina_user < 20:
             return False, f"Stamina user {self.stamina_user}% < 20%"
         
+        # Cooldown
         if self.cooldown_until and time.time() < self.cooldown_until:
             remaining = int((self.cooldown_until - time.time()) / 60)
             return False, f"Masih dalam cooldown aftercare ({remaining} menit tersisa)"
@@ -288,7 +300,10 @@ class CharacterRegistration:
             self.stamina_user = max(0, self.stamina_user - 30)
         
         self.last_climax_time = time.time()
+        
+        # Cooldown 3 jam setelah climax
         self.cooldown_until = time.time() + (3 * 3600)
+        
         self.last_updated = time.time()
     
     def start_intimacy_cycle(self):
@@ -300,11 +315,17 @@ class CharacterRegistration:
     def end_intimacy_cycle(self):
         """Akhiri siklus intim (setelah aftercare)"""
         self.in_intimacy_cycle = False
+        # Kembali ke level 10
         self.level = 10
         self.last_updated = time.time()
     
     def get_progress_to_next_level(self) -> float:
-        """Dapatkan progress ke level berikutnya"""
+        """
+        Hitung progress ke level berikutnya
+        
+        Returns:
+            Progress dalam persen (0-100)
+        """
         from config import settings
         
         if self.level <= 10:
@@ -315,6 +336,7 @@ class CharacterRegistration:
             progress = ((self.total_chats - current_target) / (target - current_target)) * 100
             return max(0, min(100, progress))
         else:
+            # Level 11-12
             if self.level == 11:
                 total = settings.level.level_11_max - settings.level.level_11_min
                 if total <= 0:
@@ -331,7 +353,12 @@ class CharacterRegistration:
         return 0
     
     def to_db_registration(self) -> DBRegistration:
-        """Convert ke database model"""
+        """
+        Convert ke database model
+        
+        Returns:
+            DBRegistration object
+        """
         return DBRegistration(
             id=self.id,
             role=self.role,
@@ -340,17 +367,17 @@ class CharacterRegistration:
             created_at=self.created_at,
             last_updated=self.last_updated,
             bot_name=self.bot.name,
-            bot_age=self.bot.age,
-            bot_height=self.bot.height,
-            bot_weight=self.bot.weight,
-            bot_chest=self.bot.chest,
-            bot_hijab=self.bot.hijab,
+            bot_age=self.bot.physical.age,
+            bot_height=self.bot.physical.height,
+            bot_weight=self.bot.physical.weight,
+            bot_chest=self.bot.physical.chest,
+            bot_hijab=self.bot.physical.hijab,
             user_name=self.user.name,
-            user_status=self.user.status,
+            user_status=self.user.relationship.status,
             user_age=self.user.age,
-            user_height=self.user.height,
-            user_weight=self.user.weight,
-            user_penis=self.user.penis,
+            user_height=self.user.physical.height,
+            user_weight=self.user.physical.weight,
+            user_penis=self.user.physical.penis,
             user_artist_ref=self.user.artist_ref,
             level=self.level,
             total_chats=self.total_chats,
@@ -358,20 +385,43 @@ class CharacterRegistration:
             total_climax_user=self.total_climax_user,
             stamina_bot=self.stamina_bot,
             stamina_user=self.stamina_user,
-            weighted_memory_score=self.weighted_memory_score,
             in_intimacy_cycle=self.in_intimacy_cycle,
             intimacy_cycle_count=self.intimacy_cycle_count,
             last_climax_time=self.last_climax_time,
             cooldown_until=self.cooldown_until,
+            weighted_memory_score=self.weighted_memory_score,
+            weighted_memory_data=self.weighted_memory_data,
+            emotional_bias=self.emotional_bias,
+            secondary_emotion=self.secondary_emotion,
+            secondary_arousal=self.secondary_arousal,
+            secondary_emotion_reason=self.secondary_emotion_reason,
+            physical_sensation=self.physical_sensation,
+            physical_hunger=self.physical_hunger,
+            physical_thirst=self.physical_thirst,
+            physical_temperature=self.physical_temperature,
             metadata=self.metadata
         )
     
     @classmethod
     def from_db_registration(cls, db_reg: DBRegistration) -> 'CharacterRegistration':
-        """Create from database model"""
-        bot = BotIdentity(
+        """
+        Create from database model
+        
+        Args:
+            db_reg: DBRegistration object dari database
+        
+        Returns:
+            CharacterRegistration object
+        """
+        from .bot_identity import BotIdentity, BotPhysicalProfile, BotPersonality, BotPersonalityType, BotFamilyRelation
+        from .user_identity import UserIdentity, UserPhysicalProfile, UserPersonality, UserRelationship
+        
+        # =========================================================
+        # BUILD BOT IDENTITY
+        # =========================================================
+        
+        physical = BotPhysicalProfile(
             name=db_reg.bot_name,
-            role=db_reg.role,
             age=db_reg.bot_age,
             height=db_reg.bot_height,
             weight=db_reg.bot_weight,
@@ -379,18 +429,59 @@ class CharacterRegistration:
             hijab=db_reg.bot_hijab
         )
         
-        user = UserIdentity(
-            name=db_reg.user_name,
-            status=db_reg.user_status,
-            age=db_reg.user_age,
-            height=db_reg.user_height,
-            weight=db_reg.user_weight,
-            penis=db_reg.user_penis,
-            artist_ref=db_reg.user_artist_ref
+        # Default personality
+        personality = BotPersonality(
+            type=BotPersonalityType.MANIS,
+            traits=["manis", "ramah"],
+            speaking_style="santai",
+            intimacy_style="lembut",
+            response_length="sedang"
         )
         
-        if db_reg.user_status == UserStatus.SUAMI_NOVA:
-            user.spouse_name = "Nova"
+        # Family relation (untuk IPAR)
+        family = BotFamilyRelation()
+        if db_reg.role == CharacterRole.IPAR:
+            family.has_older_sister = True
+            family.sister_name = "Nova"
+            family.sister_panggilan = "Kak Nova"
+            family.lives_with_sister = True
+            family.user_is_sister_husband = True
+        
+        bot = BotIdentity(
+            name=db_reg.bot_name,
+            role=db_reg.role,
+            physical=physical,
+            personality=personality,
+            family=family
+        )
+        
+        # =========================================================
+        # BUILD USER IDENTITY
+        # =========================================================
+        
+        relationship = UserRelationship(
+            status=db_reg.user_status,
+            spouse_name="Nova" if db_reg.user_status == UserStatus.SUAMI_NOVA else None,
+            spouse_location=None,
+            spouse_status=None
+        )
+        
+        user_physical = UserPhysicalProfile(
+            height=db_reg.user_height,
+            weight=db_reg.user_weight,
+            penis=db_reg.user_penis
+        )
+        
+        user_personality = UserPersonality()
+        
+        user = UserIdentity(
+            name=db_reg.user_name,
+            age=db_reg.user_age,
+            relationship=relationship,
+            physical=user_physical,
+            personality=user_personality,
+            artist_ref=db_reg.user_artist_ref
+        )
         
         return cls(
             id=db_reg.id,
@@ -405,23 +496,41 @@ class CharacterRegistration:
             total_climax_user=db_reg.total_climax_user,
             stamina_bot=db_reg.stamina_bot,
             stamina_user=db_reg.stamina_user,
-            weighted_memory_score=getattr(db_reg, 'weighted_memory_score', 0.5),
             in_intimacy_cycle=db_reg.in_intimacy_cycle,
             intimacy_cycle_count=db_reg.intimacy_cycle_count,
             last_climax_time=db_reg.last_climax_time,
             cooldown_until=db_reg.cooldown_until,
+            weighted_memory_score=db_reg.weighted_memory_score,
+            weighted_memory_data=db_reg.weighted_memory_data,
+            emotional_bias=db_reg.emotional_bias,
+            secondary_emotion=db_reg.secondary_emotion,
+            secondary_arousal=db_reg.secondary_arousal,
+            secondary_emotion_reason=db_reg.secondary_emotion_reason,
+            physical_sensation=db_reg.physical_sensation,
+            physical_hunger=db_reg.physical_hunger,
+            physical_thirst=db_reg.physical_thirst,
+            physical_temperature=db_reg.physical_temperature,
             created_at=db_reg.created_at,
             last_updated=db_reg.last_updated,
             metadata=db_reg.metadata
         )
     
     def format_status(self) -> str:
-        """Format status untuk ditampilkan"""
-        status_emoji = "🟢" if self.status == CharacterStatus.ACTIVE else "⚪" if self.status == CharacterStatus.CLOSED else "🔴"
+        """
+        Format status untuk ditampilkan
+        
+        Returns:
+            String status karakter
+        """
+        status_emoji = {
+            CharacterStatus.ACTIVE: "🟢",
+            CharacterStatus.CLOSED: "⚪",
+            CharacterStatus.ENDED: "🔴"
+        }.get(self.status, "⚪")
         
         return (
             f"{status_emoji} **{self.bot.name}** ({self.role.value.upper()})\n"
-            f"   👤 User: {self.user.display_name}\n"
+            f"   👤 User: {self.user.name}\n"
             f"   📊 Level {self.level}/12 | {self.total_chats} chat | {self.total_climax_bot + self.total_climax_user} climax\n"
             f"   🔥 Stamina: {self.stamina_bot}% (bot) / {self.stamina_user}% (user)"
         )
@@ -432,7 +541,5 @@ class CharacterRegistration:
 
 __all__ = [
     'CharacterStatus',
-    'BotIdentity',
-    'UserIdentity',
     'CharacterRegistration',
 ]
