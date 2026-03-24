@@ -13,17 +13,17 @@ import logging
 import json
 import os
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from functools import wraps
 
-# Setup logging untuk Railway
+# Setup basic logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[
-        logging.StreamHandler(sys.stdout),  # Railway capture stdout
-        logging.FileHandler('amoria_error.log')  # Local fallback
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('amoria_error.log')
     ]
 )
 
@@ -40,17 +40,21 @@ class RailwayErrorLogger:
     
     def __init__(self):
         self.error_count = 0
-        self.error_history = []
+        self.error_history: List[Dict] = []
         self.start_time = datetime.now()
         
         # Railway environment detection
-        self.is_railway = bool(os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+        self.is_railway = bool(
+            os.getenv('RAILWAY_ENVIRONMENT') or 
+            os.getenv('RAILWAY_PUBLIC_DOMAIN') or
+            os.getenv('RAILWAY_STATIC_URL')
+        )
         
         logger.info(f"🚀 RailwayErrorLogger initialized | Railway mode: {self.is_railway}")
         if self.is_railway:
             logger.info("📡 Railway environment detected - enhanced logging enabled")
     
-    def log_error(self, error: Exception, context: Optional[Dict] = None, severity: str = "ERROR"):
+    def log_error(self, error: Exception, context: Optional[Dict] = None, severity: str = "ERROR") -> Dict:
         """
         Log error dengan detail lengkap untuk Railway
         
@@ -58,13 +62,16 @@ class RailwayErrorLogger:
             error: Exception object
             context: Dictionary dengan konteks error
             severity: ERROR, WARNING, CRITICAL
+        
+        Returns:
+            Dictionary error details
         """
         self.error_count += 1
         
         # Format error details
         error_details = {
-            'timestamp': datetime.now().isoformat(),
             'error_id': self.error_count,
+            'timestamp': datetime.now().isoformat(),
             'severity': severity,
             'error_type': type(error).__name__,
             'error_message': str(error),
@@ -79,14 +86,16 @@ class RailwayErrorLogger:
             self.error_history.pop(0)
         
         # Log dengan format Railway-friendly
+        formatted = self._format_error_for_railway(error_details)
+        
         if severity == "CRITICAL":
-            logger.critical(self._format_error_for_railway(error_details))
+            logger.critical(formatted)
         elif severity == "ERROR":
-            logger.error(self._format_error_for_railway(error_details))
+            logger.error(formatted)
         elif severity == "WARNING":
-            logger.warning(self._format_error_for_railway(error_details))
+            logger.warning(formatted)
         else:
-            logger.info(self._format_error_for_railway(error_details))
+            logger.info(formatted)
         
         # Jika di Railway, juga output JSON untuk parsing
         if self.is_railway:
@@ -130,15 +139,19 @@ class RailwayErrorLogger:
     
     def log_info(self, message: str, context: Optional[Dict] = None):
         """Log info message"""
-        logger.info(self._format_message_for_railway("INFO", message, context))
+        formatted = self._format_message_for_railway("INFO", message, context)
+        logger.info(formatted)
     
     def log_warning(self, message: str, context: Optional[Dict] = None):
         """Log warning message"""
-        logger.warning(self._format_message_for_railway("WARNING", message, context))
+        formatted = self._format_message_for_railway("WARNING", message, context)
+        logger.warning(formatted)
     
     def log_debug(self, message: str, context: Optional[Dict] = None):
         """Log debug message"""
-        logger.debug(self._format_message_for_railway("DEBUG", message, context))
+        if self.is_railway:
+            formatted = self._format_message_for_railway("DEBUG", message, context)
+            logger.debug(formatted)
     
     def _format_message_for_railway(self, level: str, message: str, context: Optional[Dict]) -> str:
         """Format message untuk Railway"""
@@ -171,6 +184,13 @@ class RailwayErrorLogger:
 ╚══════════════════════════════════════════════════════════════════╝
 """
         logger.info(banner)
+    
+    def clear(self):
+        """Clear error history"""
+        self.error_count = 0
+        self.error_history = []
+        self.start_time = datetime.now()
+        logger.info("Error history cleared")
 
 
 # =============================================================================
@@ -240,16 +260,20 @@ def handle_errors(severity: str = "ERROR", log_context: bool = True):
 # SINGLETON INSTANCE
 # =============================================================================
 
-_error_logger = None
+_error_logger: Optional[RailwayErrorLogger] = None
 
 
 def get_error_logger() -> RailwayErrorLogger:
-    """Dapatkan instance RailwayErrorLogger"""
+    """Dapatkan instance RailwayErrorLogger (singleton)"""
     global _error_logger
     if _error_logger is None:
         _error_logger = RailwayErrorLogger()
     return _error_logger
 
+
+# =============================================================================
+# SHORTCUT FUNCTIONS
+# =============================================================================
 
 def log_error(error: Exception, context: Optional[Dict] = None, severity: str = "ERROR"):
     """Shortcut function untuk log error"""
@@ -276,6 +300,15 @@ def print_startup_banner():
     get_error_logger().print_startup_banner()
 
 
+def clear_error_history():
+    """Clear error history"""
+    get_error_logger().clear()
+
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
+
 __all__ = [
     'RailwayErrorLogger',
     'get_error_logger',
@@ -285,4 +318,5 @@ __all__ = [
     'log_warning',
     'log_debug',
     'print_startup_banner',
+    'clear_error_history',
 ]
