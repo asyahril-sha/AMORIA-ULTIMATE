@@ -357,5 +357,7 @@ class PreferencesLearner:
 __all__ = [
     'PreferencesLearner',
     'PreferenceCategory',
-    'PreferenceItem'
+    'PreferenceItem',
+    'PreferencesLearner',
+    'PreferenceCategory',
 ]
