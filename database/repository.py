@@ -417,6 +417,9 @@ class Repository:
         if not result:
             return None
 
+        # Konversi ke dict
+        data = dict(result)
+
         if data.get('time_data') and isinstance(data['time_data'], str):
             import json
             data['time_data'] = json.loads(data['time_data'])
