@@ -1,101 +1,99 @@
-# database_migrate.py
-# -*- coding: utf-8 -*-
+# database/migrate.py
 
-import asyncio
-import sys
-import os
 import logging
-
-from config import settings
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 
 logger = logging.getLogger(__name__)
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+async def create_registrations_table(db):
+    await db.execute("DROP TABLE IF EXISTS registrations")
 
-async def run_migration():
-    print("=" * 60)
-    print("💜 AMORIA DATABASE RESET & MIGRATION")
-    print("=" * 60)
-
-    try:
-        from database.connection import init_db, close_db, get_db
-
-        # INIT DB
-        await init_db()
-        print("✅ DB Connected")
-
-        db = await get_db()
-
-        # 🔥 HARD RESET (ANTI ERROR)
-        await db.execute("DROP TABLE IF EXISTS registrations")
-        await db.execute("DROP TABLE IF EXISTS working_memory")
-        await db.execute("DROP TABLE IF EXISTS long_term_memory")
-        await db.execute("DROP TABLE IF EXISTS state_tracker")
-        await db.commit()
-
-        print("💣 All tables dropped (clean reset)")
-
-        # IMPORT MIGRATION
-        from database.migrate import (
-            create_registrations_table,
-            create_working_memory_table,
-            create_long_term_memory_table,
-            create_state_tracker_table
+    await db.execute("""
+        CREATE TABLE registrations (
+            id TEXT PRIMARY KEY,
+            role TEXT,
+            sequence INTEGER,
+            status TEXT,
+            created_at REAL,
+            last_updated REAL,
+            bot_identity TEXT,
+            user_identity TEXT,
+            bot_name TEXT,
+            user_name TEXT,
+            level INTEGER,
+            total_chats INTEGER,
+            stamina_bot INTEGER,
+            stamina_user INTEGER,
+            metadata TEXT
         )
+    """)
 
-        # CREATE TABLES
-        await create_registrations_table(db)
-        await create_working_memory_table(db)
-        await create_long_term_memory_table(db)
-        await create_state_tracker_table(db)
+    await db.commit()
+    logger.info("✅ registrations created")
 
-        print("✅ All tables recreated")
 
-        # VERIFY
-        tables = await db.fetch_all(
-            "SELECT name FROM sqlite_master WHERE type='table'"
+async def create_working_memory_table(db):
+    await db.execute("DROP TABLE IF EXISTS working_memory")
+
+    await db.execute("""
+        CREATE TABLE working_memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registration_id TEXT,
+            user_message TEXT,
+            bot_response TEXT,
+            timestamp REAL
         )
+    """)
 
-        print("\n📋 TABLES:")
-        for t in tables:
-            print(f"   • {t['name']}")
-
-        # SIZE
-        db_path = settings.database.path
-        if db_path.exists():
-            size = db_path.stat().st_size / (1024 * 1024)
-            print(f"\n📊 DB Size: {size:.2f} MB")
-
-        print("=" * 60)
-        print("✅ DATABASE READY (CLEAN)")
-        print("=" * 60)
-
-        return True
-
-    except Exception as e:
-        print(f"❌ ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-    finally:
-        try:
-            from database.connection import close_db
-            await close_db()
-        except:
-            pass
+    await db.commit()
+    logger.info("✅ working_memory created")
 
 
-def main():
-    success = asyncio.run(run_migration())
-    sys.exit(0 if success else 1)
+async def create_long_term_memory_table(db):
+    await db.execute("DROP TABLE IF EXISTS long_term_memory")
+
+    await db.execute("""
+        CREATE TABLE long_term_memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registration_id TEXT,
+            memory_type TEXT,
+            content TEXT,
+            importance REAL,
+            timestamp REAL,
+            status TEXT,
+            emotional_tag TEXT,
+            metadata TEXT
+        )
+    """)
+
+    await db.commit()
+    logger.info("✅ long_term_memory created")
 
 
-if __name__ == "__main__":
-    main()
+async def create_state_tracker_table(db):
+    await db.execute("DROP TABLE IF EXISTS state_tracker")
+
+    await db.execute("""
+        CREATE TABLE state_tracker (
+            registration_id TEXT PRIMARY KEY,
+            location_bot TEXT,
+            location_user TEXT,
+            updated_at REAL
+        )
+    """)
+
+    await db.commit()
+    logger.info("✅ state_tracker created")
+
+
+async def run_migrations():
+    from database.connection import get_db
+
+    db = await get_db()
+
+    await create_registrations_table(db)
+    await create_working_memory_table(db)
+    await create_long_term_memory_table(db)
+    await create_state_tracker_table(db)
+
+    logger.info("🔥 ALL TABLES READY")
