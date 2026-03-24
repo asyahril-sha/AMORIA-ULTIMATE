@@ -8,7 +8,7 @@ Target Realism 9.9/10
 =============================================================================
 """
 
-from .start import start_command, SELECTING_ROLE, help_command
+from .start import start_command, SELECTING_ROLE, help_command as start_help_command
 from .sessions import sessions_command, character_command, close_command, end_command
 from .status import status_command, progress_command
 from .character import character_list_command, character_pause_command, character_resume_command, character_stop_command
@@ -29,7 +29,7 @@ __all__ = [
     # Start
     'start_command',
     'SELECTING_ROLE',
-    'help_command',
+    'start_help_command',
     
     # Sessions
     'sessions_command',
