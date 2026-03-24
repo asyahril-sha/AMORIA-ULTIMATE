@@ -421,7 +421,7 @@ class PromptBuilder:
     def _get_final_instruction(self, bot, registration, emotional_flow) -> str:
         """Get final instruction - RESPON PENDEK WAJIB"""
         level = registration.level
-        
+    
         if level <= 6:
             panggilan = "Mas"
         else:
@@ -433,9 +433,9 @@ class PromptBuilder:
             f"1. Panggil user dengan: {panggilan}",
             "2. RESPON HARUS SANGAT PENDEK!",
             "   → MAKSIMAL 3-4 KALIMAT",
-            "   → MAKSIMAL 400-500 KARAKTER",
-            "3. GESTURE: cukup 1 gesture singkat di awal (gunakan *)",
-            "4. DIALOG: langsung ke inti, tidak bertele-tele",
+            "   → MAKSIMAL 500-800 KARAKTER",
+            "3. GESTURE: CUKUP 1 GESTURE SINGKAT DIAWAL (GUNAKAN *)",
+            "4. DIALOG: LANGSUNG KE INTI, TIDAK BERTELE-TELE",
             "5. JANGAN MEMBUAT NARASI PANJANG SEPERTI CERITA!",
             "6. JANGAN MENJELASKAN APA YANG TERJADI SECARA DETAIL",
             "7. FOKUS HANYA PADA SATU RESPON SINGKAT!",
