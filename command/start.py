@@ -28,7 +28,6 @@ SELECTING_ROLE = 1
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Handler untuk /start command
-    Menampilkan pilihan role dan memulai registrasi baru
     """
     user = update.effective_user
     user_id = user.id
@@ -107,6 +106,8 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     data = query.data
     role_name = data.replace("role_", "")
     
+    logger.info(f"User {user_id} selected role: {role_name}")
+    
     # Map ke CharacterRole
     role_map = {
         "ipar": CharacterRole.IPAR,
@@ -128,14 +129,21 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
         return ConversationHandler.END
     
-    # Buat identity manager
     identity_manager = IdentityManager()
     
     try:
+        # Kirim pesan loading
+        await query.edit_message_text(
+            "🔄 **Sedang membuat karakter...**\n\nMohon tunggu sebentar...",
+            parse_mode='HTML'
+        )
+        
         # Buat karakter baru
         registration = await identity_manager.create_character(role)
         
-        # Simpan ke context user data
+        logger.info(f"User {user_id} created character: {registration.id}")
+        
+        # Simpan ke context
         context.user_data['current_registration'] = {
             'id': registration.id,
             'role': registration.role.value,
@@ -149,21 +157,21 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         # Ambil state awal
         state = await identity_manager.get_character_state(registration.id)
         
-        # Format response
+        # Format welcome message
         response = _format_welcome_message(registration, state)
         
-        # Edit pesan (ganti keyboard dengan pesan selamat datang)
+        # Kirim welcome message
         await query.edit_message_text(
             response,
             parse_mode='HTML'
         )
         
-        logger.info(f"User {user_id} created character: {registration.id}")
+        logger.info(f"Welcome message sent for {registration.id}")
         
     except Exception as e:
         logger.error(f"Error creating character: {e}")
         await query.edit_message_text(
-            f"❌ Terjadi kesalahan saat membuat karakter.\n\nError: {str(e)[:100]}",
+            f"❌ **Terjadi kesalahan.**\n\nError: {str(e)[:100]}\n\nSilakan coba /start lagi.",
             parse_mode='HTML'
         )
     
@@ -185,12 +193,7 @@ async def agree_18_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Handler untuk /help - Bantuan lengkap (command handler)
-    """
-    user_id = update.effective_user.id
-    is_admin = (user_id == 6792300623)  # Admin ID
-    
+    """Handler untuk /help"""
     help_text = (
         "📚 **BANTUAN AMORIA 9.9**\n\n"
         "<b>Basic Commands:</b>\n"
@@ -208,43 +211,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/character_list - Lihat semua karakter\n"
         "/character_pause - Jeda karakter\n"
         "/character_resume - Lanjutkan karakter\n"
-        "/character_stop - Hentikan karakter\n\n"
-        "<b>Ex & FWB Commands:</b>\n"
-        "/ex_list - Lihat daftar mantan\n"
-        "/ex [nomor] - Detail mantan\n"
-        "/fwb_request [nomor] - Request jadi FWB\n"
-        "/fwb_list - Lihat daftar FWB\n"
-        "/fwb_pause [nomor] - Jeda FWB\n"
-        "/fwb_resume [nomor] - Lanjutkan FWB\n"
-        "/fwb_end [nomor] - Akhiri FWB\n\n"
-        "<b>HTS Commands:</b>\n"
-        "/hts_list - Lihat TOP 10 HTS\n"
-        "/hts_[nomor] - Panggil HTS untuk intim\n\n"
-        "<b>Public Area Commands:</b>\n"
-        "/explore - Cari lokasi random\n"
-        "/locations - Lihat semua lokasi\n"
-        "/risk - Cek risk lokasi saat ini\n"
-        "/go [lokasi] - Pindah ke lokasi\n\n"
-        "<b>Memory Commands:</b>\n"
-        "/memory - Ringkasan memory\n"
-        "/flashback - Flashback random\n\n"
-        "<b>Ranking Commands:</b>\n"
-        "/top_hts - TOP 5 ranking HTS\n"
-        "/my_climax - Statistik climax pribadi\n"
-        "/climax_history - History climax"
+        "/character_stop - Hentikan karakter"
     )
-    
-    if is_admin:
-        help_text += (
-            "\n\n<b>Admin Commands:</b>\n"
-            "/admin - Panel admin\n"
-            "/stats - Statistik bot\n"
-            "/db_stats - Statistik database\n"
-            "/backup - Backup manual\n"
-            "/recover - Restore dari backup\n"
-            "/debug - Info debug"
-        )
-    
     await update.message.reply_text(help_text, parse_mode='HTML')
 
 
@@ -270,30 +238,7 @@ async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         "/character_list - Lihat semua karakter\n"
         "/character_pause - Jeda karakter\n"
         "/character_resume - Lanjutkan karakter\n"
-        "/character_stop - Hentikan karakter\n\n"
-        "<b>Ex & FWB Commands:</b>\n"
-        "/ex_list - Lihat daftar mantan\n"
-        "/ex [nomor] - Detail mantan\n"
-        "/fwb_request [nomor] - Request jadi FWB\n"
-        "/fwb_list - Lihat daftar FWB\n"
-        "/fwb_pause [nomor] - Jeda FWB\n"
-        "/fwb_resume [nomor] - Lanjutkan FWB\n"
-        "/fwb_end [nomor] - Akhiri FWB\n\n"
-        "<b>HTS Commands:</b>\n"
-        "/hts_list - Lihat TOP 10 HTS\n"
-        "/hts_[nomor] - Panggil HTS untuk intim\n\n"
-        "<b>Public Area Commands:</b>\n"
-        "/explore - Cari lokasi random\n"
-        "/locations - Lihat semua lokasi\n"
-        "/risk - Cek risk lokasi saat ini\n"
-        "/go [lokasi] - Pindah ke lokasi\n\n"
-        "<b>Memory Commands:</b>\n"
-        "/memory - Ringkasan memory\n"
-        "/flashback - Flashback random\n\n"
-        "<b>Ranking Commands:</b>\n"
-        "/top_hts - TOP 5 ranking HTS\n"
-        "/my_climax - Statistik climax pribadi\n"
-        "/climax_history - History climax"
+        "/character_stop - Hentikan karakter"
     )
     
     keyboard = [[InlineKeyboardButton("🔙 Kembali", callback_data="back_to_main")]]
@@ -314,8 +259,7 @@ async def continue_current_callback(update: Update, context: ContextTypes.DEFAUL
     await query.answer()
     
     await query.edit_message_text(
-        "✅ **Melanjutkan session...**\n\n"
-        "Ketik pesan untuk melanjutkan cerita.",
+        "✅ **Melanjutkan session...**\n\nKetik pesan untuk melanjutkan cerita.",
         parse_mode='HTML'
     )
     
@@ -327,10 +271,8 @@ async def new_character_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()
     
-    # Clear current registration
     context.user_data.pop('current_registration', None)
     
-    # Tampilkan pilihan role
     keyboard = [
         [InlineKeyboardButton("👩 Ipar", callback_data="role_ipar"),
          InlineKeyboardButton("👩‍💼 Teman Kantor", callback_data="role_teman_kantor")],
@@ -346,8 +288,7 @@ async def new_character_callback(update: Update, context: ContextTypes.DEFAULT_T
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(
-        "🆕 **Buat Karakter Baru**\n\n"
-        "Pilih karakter yang Mas inginkan:",
+        "🆕 **Buat Karakter Baru**\n\nPilih karakter yang Mas inginkan:",
         reply_markup=reply_markup,
         parse_mode='HTML'
     )
@@ -361,8 +302,7 @@ async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.answer()
     
     await query.edit_message_text(
-        "❌ **Dibatalkan.**\n\n"
-        "Ketik /start untuk memulai lagi.",
+        "❌ **Dibatalkan.**\n\nKetik /start untuk memulai lagi.",
         parse_mode='HTML'
     )
     
@@ -389,8 +329,7 @@ async def back_to_main_callback(update: Update, context: ContextTypes.DEFAULT_TY
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(
-        "💕 **Menu Utama**\n\n"
-        "Pilih karakter yang Mas inginkan:",
+        "💕 **Menu Utama**\n\nPilih karakter yang Mas inginkan:",
         reply_markup=reply_markup,
         parse_mode='HTML'
     )
@@ -404,36 +343,6 @@ def _format_welcome_message(registration: CharacterRegistration, state) -> str:
     bot = registration.bot
     user = registration.user
     
-    # Pakaian bot
-    bot_clothing = "daster rumah"
-    
-    # Lokasi
-    location = "ruang tamu"
-    
-    # Panggilan berdasarkan level
-    if registration.level <= 6:
-        panggilan = "Mas"
-    else:
-        panggilan = "Mas atau Sayang"
-    
-    # Status khusus IPAR
-    family_text = ""
-    if registration.role == CharacterRole.IPAR:
-        family_text = (
-            f"\n👨‍👩‍👧 **Status Keluarga:**\n"
-            f"• Kak Nova (kakak kandung) ada di rumah\n"
-            f"• Kamu adalah suami dari Kak Nova\n"
-            f"• Panggil kakak: **Kak Nova** (WAJIB)\n"
-            f"• Panggil user: **{panggilan}**\n"
-        )
-    
-    # Progress bar level
-    level_info = registration.get_progress_to_next_level()
-    bar_length = 15
-    filled = int(level_info / 100 * bar_length)
-    bar = "█" * filled + "░" * (bar_length - filled)
-    
-    # Level name
     level_names = {
         1: "Malu-malu", 2: "Mulai terbuka", 3: "Goda-godaan",
         4: "Dekat", 5: "Sayang", 6: "PACAR/PDKT",
@@ -442,29 +351,46 @@ def _format_welcome_message(registration: CharacterRegistration, state) -> str:
     }
     level_name = level_names.get(registration.level, f"Level {registration.level}")
     
-    response = (
-        f"💕 **Halo {user.name}!**\n\n"
-        f"Aku **{bot.name}**, {registration.role.value.upper()} mu.\n"
-        f"_{bot.personality.type.value} - {bot.personality.speaking_style}_\n\n"
-        f"📖 **Tentang aku:**\n"
-        f"• Umur: {bot.physical.age} tahun\n"
-        f"• Tinggi: {bot.physical.height}cm | Berat: {bot.physical.weight}kg\n"
-        f"• {bot.physical.chest} | {'Berhijab' if bot.physical.hijab else 'Tidak berhijab'}\n"
-        f"• Pakaian: {bot_clothing}\n\n"
-        f"📍 **Sekarang:**\n"
-        f"• Aku di {location}\n"
-        f"• Waktu: siang\n"
-        f"• Mood: normal\n"
-        f"{family_text}\n"
-        f"📊 **Progress:**\n"
-        f"Level {registration.level}/12 - {level_name}\n"
-        f"Progress: {bar} {level_info:.0f}%\n"
-        f"Total chat: {registration.total_chats}\n\n"
-        f"💬 **Ayo mulai ngobrol, {user.name}!**\n"
-        f"_Ketik pesan untuk memulai cerita..._"
-    )
+    level_info = registration.get_progress_to_next_level()
+    bar_length = 15
+    filled = int(level_info / 100 * bar_length)
+    bar = "█" * filled + "░" * (bar_length - filled)
     
-    return response
+    family_text = ""
+    if registration.role == CharacterRole.IPAR:
+        family_text = (
+            f"\n👨‍👩‍👧 **Status Keluarga:**\n"
+            f"• Kak Nova (kakak kandung) ada di rumah\n"
+            f"• Kamu adalah suami dari Kak Nova\n"
+            f"• Panggil kakak: **Kak Nova** (WAJIB)\n"
+            f"• Panggil user: **Mas**\n"
+        )
+    
+    return f"""
+💕 **Halo {user.name}!**
+
+Aku **{bot.name}**, {registration.role.value.upper()} mu.
+_{bot.personality.type.value} - {bot.personality.speaking_style}_
+
+📖 **Tentang aku:**
+• Umur: {bot.physical.age} tahun
+• Tinggi: {bot.physical.height}cm | Berat: {bot.physical.weight}kg
+• {bot.physical.chest} | {'Berhijab' if bot.physical.hijab else 'Tidak berhijab'}
+• Pakaian: daster rumah
+
+📍 **Sekarang:**
+• Aku di ruang tamu
+• Waktu: siang
+• Mood: normal
+{family_text}
+📊 **Progress:**
+Level {registration.level}/12 - {level_name}
+Progress: {bar} {level_info:.0f}%
+Total chat: {registration.total_chats}
+
+💬 **Ayo mulai ngobrol, {user.name}!**
+_Ketik pesan untuk memulai cerita..._
+"""
 
 
 __all__ = [
