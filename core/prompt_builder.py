@@ -426,13 +426,13 @@ class PromptBuilder:
             panggilan = "Mas atau Sayang (pilih natural sesuai situasi)"
         
         if level <= 3:
-            target = "4-6 kalimat, 600-1200 karakter"
+            target = "2-3 kalimat, 600-800 karakter"
         elif level <= 6:
-            target = "5-7 kalimat, 800-1500 karakter"
+            target = "3-4 kalimat, 800-1000 karakter"
         elif level <= 9:
-            target = "6-8 kalimat, 1000-2000 karakter"
+            target = "4-5 kalimat, 800-12000 karakter"
         else:
-            target = "8-9 kalimat, 1200-2800 karakter"
+            target = "4-8 kalimat, 800-1500 karakter"
         
         instruction = [
             "💡 **INSTRUKSI RESPON REALISM 9.9:**",
