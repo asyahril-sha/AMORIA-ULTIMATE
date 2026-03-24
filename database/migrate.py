@@ -1,13 +1,7 @@
 # database/migrate.py
 # -*- coding: utf-8 -*-
 
-import asyncio
 import logging
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from database.connection import get_db
 
 logger = logging.getLogger(__name__)
@@ -17,9 +11,7 @@ logger = logging.getLogger(__name__)
 # CREATE TABLES (SAFE - NO DROP)
 # =========================================================
 
-async def create_tables(db):
-    logger.info("📦 Creating tables (SQLite safe mode)...")
-
+async def create_registrations_table(db):
     await db.execute("""
     CREATE TABLE IF NOT EXISTS registrations (
         id TEXT PRIMARY KEY,
@@ -29,53 +21,18 @@ async def create_tables(db):
         created_at REAL,
         last_updated REAL,
 
-        bot_identity TEXT DEFAULT '{}',
-        user_identity TEXT DEFAULT '{}',
-
         bot_name TEXT,
-        bot_age INTEGER,
-        bot_height INTEGER,
-        bot_weight INTEGER,
-        bot_chest TEXT,
-        bot_hijab INTEGER DEFAULT 0,
-
         user_name TEXT,
-        user_status TEXT DEFAULT 'lajang',
-        user_age INTEGER,
-        user_height INTEGER,
-        user_weight INTEGER,
-        user_penis INTEGER,
-        user_artist_ref TEXT,
 
         level INTEGER DEFAULT 1,
         total_chats INTEGER DEFAULT 0,
-        total_climax_bot INTEGER DEFAULT 0,
-        total_climax_user INTEGER DEFAULT 0,
-        stamina_bot INTEGER DEFAULT 100,
-        stamina_user INTEGER DEFAULT 100,
-
-        in_intimacy_cycle INTEGER DEFAULT 0,
-        intimacy_cycle_count INTEGER DEFAULT 0,
-        last_climax_time REAL,
-        cooldown_until REAL,
-
-        weighted_memory_score REAL DEFAULT 0.5,
-        weighted_memory_data TEXT DEFAULT '{}',
-        emotional_bias TEXT DEFAULT '{}',
-
-        secondary_emotion TEXT,
-        secondary_arousal INTEGER DEFAULT 0,
-        secondary_emotion_reason TEXT,
-
-        physical_sensation TEXT DEFAULT 'biasa aja',
-        physical_hunger INTEGER DEFAULT 30,
-        physical_thirst INTEGER DEFAULT 30,
-        physical_temperature INTEGER DEFAULT 25,
 
         metadata TEXT DEFAULT '{}'
     )
     """)
 
+
+async def create_working_memory_table(db):
     await db.execute("""
     CREATE TABLE IF NOT EXISTS working_memory (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,6 +45,8 @@ async def create_tables(db):
     )
     """)
 
+
+async def create_long_term_memory_table(db):
     await db.execute("""
     CREATE TABLE IF NOT EXISTS long_term_memory (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,40 +61,24 @@ async def create_tables(db):
     )
     """)
 
+
+async def create_state_tracker_table(db):
     await db.execute("""
     CREATE TABLE IF NOT EXISTS state_tracker (
         registration_id TEXT PRIMARY KEY,
 
         location_bot TEXT,
         location_user TEXT,
-        position_bot TEXT,
-        position_user TEXT,
-        position_relative TEXT,
-
-        clothing_bot_outer TEXT,
-        clothing_bot_outer_bottom TEXT,
-        clothing_bot_inner_top TEXT,
-        clothing_bot_inner_bottom TEXT,
-        clothing_user_outer TEXT,
-        clothing_user_outer_bottom TEXT,
-        clothing_user_inner_bottom TEXT,
-        clothing_history TEXT DEFAULT '[]',
-
-        family_status TEXT,
-        family_location TEXT,
-        family_activity TEXT,
-        family_estimate_return TEXT,
 
         activity_bot TEXT,
         activity_user TEXT,
-
-        current_time TEXT,
-        time_override_history TEXT DEFAULT '[]',
 
         updated_at REAL
     )
     """)
 
+
+async def create_backups_table(db):
     await db.execute("""
     CREATE TABLE IF NOT EXISTS backups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,97 +86,55 @@ async def create_tables(db):
         size INTEGER,
         created_at REAL,
         type TEXT DEFAULT 'auto',
-        status TEXT DEFAULT 'completed',
-        metadata TEXT DEFAULT '{}'
+        status TEXT DEFAULT 'completed'
     )
     """)
 
-    logger.info("✅ Tables ready")
-
 
 # =========================================================
-# FIX MISSING COLUMNS (CRITICAL)
+# ADD MISSING COLUMNS (SAFE MIGRATION)
 # =========================================================
 
 async def fix_missing_columns(db):
-    logger.info("🧱 Fixing missing columns...")
+    try:
+        columns = await db.fetch_all("PRAGMA table_info(registrations)")
+        existing = [col["name"] for col in columns]
 
-    async def get_columns(table):
-        rows = await db.fetch_all(f"PRAGMA table_info({table})")
-        return [r['name'] for r in rows]
+        needed = {
+            "bot_identity": "TEXT",
+            "user_identity": "TEXT",
+            "stamina_bot": "INTEGER DEFAULT 100",
+            "stamina_user": "INTEGER DEFAULT 100",
+            "physical_sensation": "TEXT",
+            "physical_hunger": "INTEGER DEFAULT 30",
+        }
 
-    async def add_column(table, col, definition):
-        try:
-            await db.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
-            logger.info(f"✅ Added column {table}.{col}")
-        except Exception:
-            pass
+        for col, definition in needed.items():
+            if col not in existing:
+                try:
+                    await db.execute(f"ALTER TABLE registrations ADD COLUMN {col} {definition}")
+                    logger.info(f"✅ Added column: {col}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed add column {col}: {e}")
 
-    # ================= REGISTRATIONS =================
-    cols = await get_columns("registrations")
-
-    reg_columns = {
-        "secondary_emotion": "TEXT",
-        "secondary_arousal": "INTEGER DEFAULT 0",
-        "secondary_emotion_reason": "TEXT",
-        "user_penis": "INTEGER",
-        "user_artist_ref": "TEXT",
-        "weighted_memory_data": "TEXT DEFAULT '{}'",
-        "emotional_bias": "TEXT DEFAULT '{}'"
-    }
-
-    for col, defn in reg_columns.items():
-        if col not in cols:
-            await add_column("registrations", col, defn)
-
-    # ================= STATE TRACKER =================
-    cols = await get_columns("state_tracker")
-
-    state_columns = {
-        "clothing_bot_outer_bottom": "TEXT",
-        "clothing_bot_inner_top": "TEXT",
-        "clothing_bot_inner_bottom": "TEXT",
-        "clothing_user_outer": "TEXT",
-        "clothing_user_outer_bottom": "TEXT",
-        "clothing_user_inner_bottom": "TEXT",
-        "family_status": "TEXT",
-        "family_location": "TEXT",
-        "family_activity": "TEXT",
-        "family_estimate_return": "TEXT",
-        "clothing_history": "TEXT DEFAULT '[]'",
-        "time_override_history": "TEXT DEFAULT '[]'"
-    }
-
-    for col, defn in state_columns.items():
-        if col not in cols:
-            await add_column("state_tracker", col, defn)
-
-    # ================= LONG TERM =================
-    cols = await get_columns("long_term_memory")
-
-    if "status" not in cols:
-        await add_column("long_term_memory", "status", "TEXT")
-
-    if "emotional_tag" not in cols:
-        await add_column("long_term_memory", "emotional_tag", "TEXT")
-
-    logger.info("✅ Missing columns fixed")
+    except Exception as e:
+        logger.warning(f"⚠️ Column migration skipped: {e}")
 
 
 # =========================================================
-# INDEXES
+# INDEXES (OPTIONAL)
 # =========================================================
 
 async def create_indexes(db):
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_reg_role ON registrations(role)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_reg_status ON registrations(status)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_mem_reg ON working_memory(registration_id)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_ltm_reg ON long_term_memory(registration_id)")
-    logger.info("⚡ Indexes ready")
+    try:
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_registrations_role ON registrations(role)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_memory_reg ON working_memory(registration_id)")
+    except Exception as e:
+        logger.warning(f"⚠️ Index creation skipped: {e}")
 
 
 # =========================================================
-# MAIN
+# MAIN MIGRATION
 # =========================================================
 
 async def run_migrations():
@@ -250,23 +151,27 @@ async def run_migrations():
         await create_long_term_memory_table(db)
         await create_state_tracker_table(db)
         await create_backups_table(db)
+
+        # Index
         await create_indexes(db)
 
-        # Fix missing columns
+        # Fix columns
         await fix_missing_columns(db)
 
-        # ✅ VERIFY TABLES (TARUH DI SINI)
-        tables = await db.fetch_all("SELECT name FROM sqlite_master WHERE type='table'")
-        table_names = [t['name'] for t in tables]
+        # VERIFY
+        tables = await db.fetch_all(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+        table_names = [t["name"] for t in tables]
 
-        logger.info("\n📊 TABLES CREATED:")
+        logger.info("\n📊 TABLES:")
         for table in sorted(table_names):
             try:
                 count = await db.fetch_one(f"SELECT COUNT(*) as count FROM {table}")
-                row_count = count['count'] if count else 0
+                row_count = count["count"] if count else 0
                 logger.info(f"   • {table}: {row_count} rows")
             except Exception as e:
-                logger.warning(f"⚠️ Could not read table {table}: {e}")
+                logger.warning(f"⚠️ Could not read {table}: {e}")
 
         logger.info("=" * 60)
         logger.info("✅ Migration Complete")
@@ -277,13 +182,11 @@ async def run_migrations():
     except Exception as e:
         logger.error(f"❌ Migration failed: {e}")
         return False
-        
-# =========================
-# EXPORT FUNCTIONS
-# =========================
+
+
+# =========================================================
+# EXPORT (WAJIB ADA BIAR GAK ERROR IMPORT)
+# =========================================================
 
 async def migrate():
-    """Alias for compatibility"""
     return await run_migrations()
-
-print("🔥 MIGRATE FUNCTION LOADED")
