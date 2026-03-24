@@ -7,6 +7,7 @@ Time System untuk AMORIA
 import time
 import re
 import logging
+import json
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
@@ -155,10 +156,27 @@ class TimeSystem:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'TimeSystem':
-        """Create from stored dict"""
+    def from_dict(cls, data):
+        """Create from stored dict or JSON string"""
+        import json
+    
+        # Jika data adalah string, parse JSON
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except (json.JSONDecodeError, TypeError):
+                # Jika gagal parse, return instance default
+                logger.warning(f"Failed to parse time_data JSON, using default")
+                return cls()
+    
+        # Jika data adalah None atau bukan dict, return default
+        if not data or not isinstance(data, dict):
+            return cls()
+    
+        # Buat instance dari data
         instance = cls(data.get('current'))
         instance.last_update = data.get('last_update', time.time())
         instance.override_history = data.get('override_history', [])
         instance.override_count = data.get('override_count', 0)
+    
         return instance
