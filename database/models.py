@@ -584,13 +584,34 @@ class StateTracker(BaseModel):
     
     updated_at: float = Field(default_factory=time.time)
     
+    # ===== TIME SYSTEM (ADDED) =====
+    time_data: Optional[Dict] = None
+    _time_system = None
+    
     # ===== TIDAK ADA LAGI: emotion_bot, arousal_bot, mood_bot =====
     # Semua data emosi ada di BotIdentity
+    
+    @property
+    def time(self):
+        """Lazy load TimeSystem"""
+        if self._time_system is None:
+            from core.time_system import TimeSystem
+            if self.time_data:
+                self._time_system = TimeSystem.from_dict(self.time_data)
+            else:
+                self._time_system = TimeSystem()
+        return self._time_system
+    
+    @time.setter
+    def time(self, value):
+        self._time_system = value
+        if value:
+            self.time_data = value.to_dict()
     
     def to_dict(self) -> Dict:
         clothing_dict = self.clothing_state.to_dict()
         
-        return {
+        result = {
             'registration_id': self.registration_id,
             'location_bot': self.location_bot,
             'location_user': self.location_user,
@@ -615,6 +636,12 @@ class StateTracker(BaseModel):
             'time_override_history': json.dumps(self.time_override_history),
             'updated_at': self.updated_at
         }
+        
+        # Tambahkan time_data jika ada
+        if self._time_system:
+            result['time_data'] = self._time_system.to_dict()
+        
+        return result
     
     @classmethod
     def from_dict(cls, data: Dict) -> 'StateTracker':
@@ -638,7 +665,7 @@ class StateTracker(BaseModel):
         if data.get('family_location'):
             family_location = FamilyLocation(data['family_location'])
         
-        return cls(
+        instance = cls(
             registration_id=data['registration_id'],
             location_bot=data.get('location_bot', 'ruang tamu'),
             location_user=data.get('location_user', 'ruang tamu'),
@@ -656,6 +683,13 @@ class StateTracker(BaseModel):
             time_override_history=json.loads(data.get('time_override_history', '[]')),
             updated_at=data.get('updated_at', time.time())
         )
+        
+        # Load time system if exists
+        if data.get('time_data'):
+            from core.time_system import TimeSystem
+            instance._time_system = TimeSystem.from_dict(data['time_data'])
+        
+        return instance
 
 
 # =============================================================================
