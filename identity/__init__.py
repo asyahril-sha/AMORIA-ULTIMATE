@@ -7,22 +7,40 @@ Identity Package - Multi-Identity System
 =============================================================================
 """
 
-from .registration import CharacterRegistration, CharacterStatus, BotIdentity, UserIdentity
+from .registration import CharacterRegistration, CharacterStatus
 from .manager import IdentityManager
-from .user_identity import UserPhysicalProfile, UserPersonality, UserRelationship, UserIdentity
-from .bot_identity import BotPersonalityType, BotPhysicalProfile, BotPersonality, BotFamilyRelation, BotIdentity
+from .bot_identity import (
+    BotIdentity,
+    BotPersonality,
+    BotPhysicalProfile,
+    BotPersonalityType,
+    BotFamilyRelation
+)
+from .user_identity import (
+    UserIdentity,
+    UserPhysicalProfile,
+    UserPersonality,
+    UserRelationship
+)
 
 __all__ = [
+    # Registration
     'CharacterRegistration',
     'CharacterStatus',
-    'BotIdentity',
-    'UserIdentity',
+    
+    # Manager
     'IdentityManager',
+    
+    # Bot Identity
+    'BotIdentity',
+    'BotPersonality',
+    'BotPhysicalProfile',
+    'BotPersonalityType',
+    'BotFamilyRelation',
+    
+    # User Identity
+    'UserIdentity',
     'UserPhysicalProfile',
     'UserPersonality',
     'UserRelationship',
-    'BotPersonalityType',
-    'BotPhysicalProfile',
-    'BotPersonality',
-    'BotFamilyRelation',
 ]
