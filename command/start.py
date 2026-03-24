@@ -1,59 +1,26 @@
 # command/start.py
 # -*- coding: utf-8 -*-
 """
-=============================================================================
 AMORIA - Virtual Human dengan Jiwa
-Command: /start - Memulai Bot & Memilih Role
-Target Realism 9.9/10
-=============================================================================
+Command: /start
 """
 
 import logging
-from typing import Optional
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 
 from database.models import CharacterRole
 from identity.manager import IdentityManager
-from identity.registration import CharacterRegistration
 
 logger = logging.getLogger(__name__)
 
-
-# Conversation states
 SELECTING_ROLE = 1
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Handler untuk /start command
-    """
+    """Handler untuk /start"""
     user = update.effective_user
-    user_id = user.id
     
-    logger.info(f"User {user_id} started bot")
-    
-    # Cek apakah ada session aktif
-    current_reg = context.user_data.get('current_registration')
-    if current_reg:
-        keyboard = [
-            [InlineKeyboardButton("✅ Lanjutkan", callback_data="continue_current"),
-             InlineKeyboardButton("🆕 Buat Karakter Baru", callback_data="new_character")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.message.reply_text(
-            f"⚠️ **Mas sudah memiliki karakter aktif!**\n\n"
-            f"Karakter: {current_reg.get('display_name', 'Unknown')}\n"
-            f"Role: {current_reg.get('role', 'Unknown')}\n\n"
-            f"Pilih tindakan:",
-            reply_markup=reply_markup,
-            parse_mode='HTML'
-        )
-        return SELECTING_ROLE
-    
-    # Tampilkan pilihan role
     keyboard = [
         [InlineKeyboardButton("👩 Ipar", callback_data="role_ipar"),
          InlineKeyboardButton("👩‍💼 Teman Kantor", callback_data="role_teman_kantor")],
@@ -69,22 +36,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    welcome_text = (
+    await update.message.reply_text(
         f"💕 **Halo {user.first_name}!**\n\n"
         f"Selamat datang di **AMORIA** - Virtual Human dengan Jiwa\n\n"
-        f"✨ **Fitur AMORIA 9.9:**\n"
-        f"• 9 Karakter dengan kepribadian unik\n"
-        f"• 100% AI generate - setiap respons unik\n"
-        f"• Weighted Memory 1000 chat terakhir\n"
-        f"• Leveling berbasis total chat (1-12)\n"
-        f"• Siklus intim Soul Bounded → Aftercare\n"
-        f"• Tracking pakaian dengan hierarki\n"
-        f"• Multi-identity system\n\n"
-        f"<b>Pilih karakter yang Mas inginkan:</b>"
-    )
-    
-    await update.message.reply_text(
-        welcome_text,
+        f"<b>Pilih karakter yang Mas inginkan:</b>",
         reply_markup=reply_markup,
         parse_mode='HTML'
     )
@@ -93,22 +48,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Callback setelah user memilih role
-    """
+    """Callback setelah pilih role"""
     query = update.callback_query
     await query.answer()
     
     user = update.effective_user
-    user_id = user.id
-    
-    # Ambil role dari callback_data
     data = query.data
     role_name = data.replace("role_", "")
     
-    logger.info(f"User {user_id} selected role: {role_name}")
+    logger.info(f"User {user.id} selected role: {role_name}")
     
-    # Map ke CharacterRole
+    # Map role
     role_map = {
         "ipar": CharacterRole.IPAR,
         "teman_kantor": CharacterRole.TEMAN_KANTOR,
@@ -123,25 +73,15 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     
     role = role_map.get(role_name)
     if not role:
-        await query.edit_message_text(
-            "❌ Role tidak valid.",
-            parse_mode='HTML'
-        )
+        await query.edit_message_text("❌ Role tidak valid.", parse_mode='HTML')
         return ConversationHandler.END
     
-    identity_manager = IdentityManager()
-    
     try:
-        # Kirim pesan loading
-        await query.edit_message_text(
-            "🔄 **Sedang membuat karakter...**\n\nMohon tunggu sebentar...",
-            parse_mode='HTML'
-        )
-        
-        # Buat karakter baru
+        # Buat karakter
+        identity_manager = IdentityManager()
         registration = await identity_manager.create_character(role)
         
-        logger.info(f"User {user_id} created character: {registration.id}")
+        logger.info(f"Created character: {registration.id}")
         
         # Simpan ke context
         context.user_data['current_registration'] = {
@@ -149,29 +89,40 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             'role': registration.role.value,
             'bot_name': registration.bot.name,
             'user_name': registration.user.name,
-            'display_name': registration.bot.display_name,
             'level': registration.level,
             'total_chats': registration.total_chats
         }
         
-        # Ambil state awal
-        state = await identity_manager.get_character_state(registration.id)
+        # Pesan selamat datang
+        welcome_text = f"""
+💕 **Halo {registration.user.name}!**
+
+Aku **{registration.bot.name}**, {registration.role.value.upper()} mu.
+
+📖 **Tentang aku:**
+• Umur: {registration.bot.physical.age} tahun
+• Tinggi: {registration.bot.physical.height}cm
+• Berat: {registration.bot.physical.weight}kg
+• {registration.bot.physical.chest}
+
+📍 **Sekarang:**
+• Aku di ruang tamu
+
+📊 **Progress:**
+Level {registration.level}/12
+Total chat: {registration.total_chats}
+
+💬 **Ayo mulai ngobrol!**
+_Ketik pesan untuk memulai cerita..._
+"""
         
-        # Format welcome message
-        response = _format_welcome_message(registration, state)
-        
-        # Kirim welcome message
-        await query.edit_message_text(
-            response,
-            parse_mode='HTML'
-        )
-        
+        await query.edit_message_text(welcome_text, parse_mode='HTML')
         logger.info(f"Welcome message sent for {registration.id}")
         
     except Exception as e:
         logger.error(f"Error creating character: {e}")
         await query.edit_message_text(
-            f"❌ **Terjadi kesalahan.**\n\nError: {str(e)[:100]}\n\nSilakan coba /start lagi.",
+            f"❌ **Terjadi kesalahan.**\n\nError: {str(e)[:200]}\n\nSilakan coba /start lagi",
             parse_mode='HTML'
         )
     
@@ -179,98 +130,58 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def agree_18_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Callback untuk setuju 18+"""
+    """Callback setuju 18+"""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "✅ Terima kasih. Silakan pilih karakter.",
+        parse_mode='HTML'
+    )
+    return SELECTING_ROLE
+
+
+async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Callback bantuan"""
     query = update.callback_query
     await query.answer()
     
-    await query.edit_message_text(
-        "✅ **Terima kasih telah menyetujui syarat 18+.**\n\n"
-        "Silakan pilih karakter yang Mas inginkan di menu utama.",
-        parse_mode='HTML'
+    help_text = (
+        "📚 **BANTUAN**\n\n"
+        "/start - Mulai\n"
+        "/status - Status\n"
+        "/progress - Progress\n"
+        "/cancel - Batal\n"
+        "/close - Tutup\n"
+        "/end - Hapus\n"
+        "/sessions - Lihat karakter\n"
+        "/character [role] [nomor] - Lanjutkan"
     )
     
+    keyboard = [[InlineKeyboardButton("🔙 Kembali", callback_data="back_to_main")]]
+    await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
     return SELECTING_ROLE
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler untuk /help"""
-    help_text = (
-        "📚 **BANTUAN AMORIA 9.9**\n\n"
-        "<b>Basic Commands:</b>\n"
-        "/start - Mulai bot & pilih karakter\n"
-        "/help - Bantuan lengkap\n"
-        "/status - Status hubungan saat ini\n"
-        "/progress - Progress leveling\n"
-        "/cancel - Batalkan percakapan\n\n"
-        "<b>Session Commands:</b>\n"
-        "/close - Tutup & simpan karakter\n"
-        "/end - Akhiri karakter total\n"
-        "/sessions - Lihat semua karakter tersimpan\n"
-        "/character [role] [nomor] - Lanjutkan karakter\n\n"
-        "<b>Character Commands:</b>\n"
-        "/character_list - Lihat semua karakter\n"
-        "/character_pause - Jeda karakter\n"
-        "/character_resume - Lanjutkan karakter\n"
-        "/character_stop - Hentikan karakter"
-    )
-    await update.message.reply_text(help_text, parse_mode='HTML')
-
-
-async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Callback untuk bantuan (inline keyboard)"""
-    query = update.callback_query
-    await query.answer()
-    
-    help_text = (
-        "📚 **BANTUAN AMORIA 9.9**\n\n"
-        "<b>Basic Commands:</b>\n"
-        "/start - Mulai bot & pilih karakter\n"
-        "/help - Bantuan lengkap\n"
-        "/status - Status hubungan saat ini\n"
-        "/progress - Progress leveling\n"
-        "/cancel - Batalkan percakapan\n\n"
-        "<b>Session Commands:</b>\n"
-        "/close - Tutup & simpan karakter\n"
-        "/end - Akhiri karakter total\n"
-        "/sessions - Lihat semua karakter tersimpan\n"
-        "/character [role] [nomor] - Lanjutkan karakter\n\n"
-        "<b>Character Commands:</b>\n"
-        "/character_list - Lihat semua karakter\n"
-        "/character_pause - Jeda karakter\n"
-        "/character_resume - Lanjutkan karakter\n"
-        "/character_stop - Hentikan karakter"
-    )
-    
-    keyboard = [[InlineKeyboardButton("🔙 Kembali", callback_data="back_to_main")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        help_text,
-        reply_markup=reply_markup,
+    """Handler /help"""
+    await update.message.reply_text(
+        "📚 Gunakan /start untuk memulai",
         parse_mode='HTML'
     )
-    
-    return SELECTING_ROLE
 
 
 async def continue_current_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Callback untuk melanjutkan session saat ini"""
+    """Lanjutkan session"""
     query = update.callback_query
     await query.answer()
-    
-    await query.edit_message_text(
-        "✅ **Melanjutkan session...**\n\nKetik pesan untuk melanjutkan cerita.",
-        parse_mode='HTML'
-    )
-    
+    await query.edit_message_text("✅ Melanjutkan... Ketik pesan.", parse_mode='HTML')
     return ConversationHandler.END
 
 
 async def new_character_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Callback untuk membuat karakter baru"""
+    """Buat karakter baru"""
     query = update.callback_query
     await query.answer()
-    
     context.user_data.pop('current_registration', None)
     
     keyboard = [
@@ -285,32 +196,24 @@ async def new_character_callback(update: Update, context: ContextTypes.DEFAULT_T
         [InlineKeyboardButton("💔 Mantan", callback_data="role_mantan")],
         [InlineKeyboardButton("❌ Batal", callback_data="cancel")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await query.edit_message_text(
-        "🆕 **Buat Karakter Baru**\n\nPilih karakter yang Mas inginkan:",
-        reply_markup=reply_markup,
+        "🆕 **Buat Karakter Baru**\n\nPilih karakter:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='HTML'
     )
-    
     return SELECTING_ROLE
 
 
 async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Callback untuk batal"""
+    """Batal"""
     query = update.callback_query
     await query.answer()
-    
-    await query.edit_message_text(
-        "❌ **Dibatalkan.**\n\nKetik /start untuk memulai lagi.",
-        parse_mode='HTML'
-    )
-    
+    await query.edit_message_text("❌ Dibatalkan. Ketik /start", parse_mode='HTML')
     return ConversationHandler.END
 
 
 async def back_to_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Callback kembali ke menu utama"""
+    """Kembali ke menu utama"""
     query = update.callback_query
     await query.answer()
     
@@ -326,82 +229,18 @@ async def back_to_main_callback(update: Update, context: ContextTypes.DEFAULT_TY
         [InlineKeyboardButton("💔 Mantan", callback_data="role_mantan")],
         [InlineKeyboardButton("❓ Bantuan", callback_data="help")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await query.edit_message_text(
-        "💕 **Menu Utama**\n\nPilih karakter yang Mas inginkan:",
-        reply_markup=reply_markup,
+        "💕 **Menu Utama**\n\nPilih karakter:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='HTML'
     )
-    
     return SELECTING_ROLE
 
 
-def _format_welcome_message(registration: CharacterRegistration, state) -> str:
-    """Format pesan selamat datang"""
-    
-    bot = registration.bot
-    user = registration.user
-    
-    level_names = {
-        1: "Malu-malu", 2: "Mulai terbuka", 3: "Goda-godaan",
-        4: "Dekat", 5: "Sayang", 6: "PACAR/PDKT",
-        7: "Nyaman", 8: "Eksplorasi", 9: "Bergairah",
-        10: "Passionate", 11: "Soul Bounded", 12: "Aftercare"
-    }
-    level_name = level_names.get(registration.level, f"Level {registration.level}")
-    
-    level_info = registration.get_progress_to_next_level()
-    bar_length = 15
-    filled = int(level_info / 100 * bar_length)
-    bar = "█" * filled + "░" * (bar_length - filled)
-    
-    family_text = ""
-    if registration.role == CharacterRole.IPAR:
-        family_text = (
-            f"\n👨‍👩‍👧 **Status Keluarga:**\n"
-            f"• Kak Nova (kakak kandung) ada di rumah\n"
-            f"• Kamu adalah suami dari Kak Nova\n"
-            f"• Panggil kakak: **Kak Nova** (WAJIB)\n"
-            f"• Panggil user: **Mas**\n"
-        )
-    
-    return f"""
-💕 **Halo {user.name}!**
-
-Aku **{bot.name}**, {registration.role.value.upper()} mu.
-_{bot.personality.type.value} - {bot.personality.speaking_style}_
-
-📖 **Tentang aku:**
-• Umur: {bot.physical.age} tahun
-• Tinggi: {bot.physical.height}cm | Berat: {bot.physical.weight}kg
-• {bot.physical.chest} | {'Berhijab' if bot.physical.hijab else 'Tidak berhijab'}
-• Pakaian: daster rumah
-
-📍 **Sekarang:**
-• Aku di ruang tamu
-• Waktu: siang
-• Mood: normal
-{family_text}
-📊 **Progress:**
-Level {registration.level}/12 - {level_name}
-Progress: {bar} {level_info:.0f}%
-Total chat: {registration.total_chats}
-
-💬 **Ayo mulai ngobrol, {user.name}!**
-_Ketik pesan untuk memulai cerita..._
-"""
-
-
 __all__ = [
-    'start_command',
-    'role_callback',
-    'agree_18_callback',
-    'help_command',
-    'help_callback',
-    'continue_current_callback',
-    'new_character_callback',
-    'cancel_callback',
-    'back_to_main_callback',
+    'start_command', 
+    'role_callback', 'agree_18_callback',
+    'help_command', 'help_callback', 'continue_current_callback',
+    'new_character_callback', 'cancel_callback', 'back_to_main_callback',
     'SELECTING_ROLE'
 ]
