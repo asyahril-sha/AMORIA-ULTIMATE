@@ -497,7 +497,6 @@ __all__ = [
     'unpause_handler',
     'sessions_handler',
     'status_handler',
-    'status_command_handler',
     'progress_handler',
     'close_handler',
     'end_handler',
