@@ -132,6 +132,12 @@ class AIEngine:
         )
         
         state = await self.repo.load_state(self.registration.id)
+        # ===== MEMORY RECALL (PENTING) =====
+        relevant_memories = [
+            m for m in long_term_memory
+            if any(keyword in m.get('content', '').lower()
+                   for keyword in ['nova', 'rumah', 'keluar', 'pergi', 'janji'])
+        ][:5]
         
         # ===== 2. ANALYZE USER MESSAGE =====
         intent_analysis = self.intent_analyzer.analyze(user_message)
@@ -207,6 +213,7 @@ class AIEngine:
             emotional_flow=self.emotional_flow,
             spatial_awareness=self.spatial,
             mood_system=self.mood,
+            relevant_memories=relevant_memories,
             intent_analysis=intent_analysis
         )
         
