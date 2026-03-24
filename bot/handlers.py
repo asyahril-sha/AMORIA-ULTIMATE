@@ -1,392 +1,509 @@
-# database/migrate.py
+# bot/handlers.py
 # -*- coding: utf-8 -*-
 """
 =============================================================================
 AMORIA - Virtual Human dengan Jiwa
-Database Migration
+Main Message Handler - Complete with all handlers
 =============================================================================
 """
 
-import asyncio
+import time
 import logging
-import sys
-import os
-from pathlib import Path
+import random
+import asyncio
+import traceback
+from typing import Dict, Optional, Any
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
 
 from config import settings
-from database.connection import get_db, close_db
+from identity.manager import IdentityManager
+from core.ai_engine import AIEngine
+from intimacy.leveling import LevelingSystem
+from intimacy.stamina import StaminaSystem
+from utils.logger import logger
+from utils.error_logger import log_error, log_info, log_warning
 
-logger = logging.getLogger(__name__)
+_active_engines: Dict[str, AIEngine] = {}
 
-
-async def create_registrations_table(db):
-    """Create registrations table with new JSON columns"""
-    await db.execute('''
-        CREATE TABLE IF NOT EXISTS registrations (
-            id TEXT PRIMARY KEY,
-            role TEXT NOT NULL,
-            sequence INTEGER NOT NULL,
-            status TEXT DEFAULT 'active',
-            created_at REAL NOT NULL,
-            last_updated REAL NOT NULL,
-            
-            -- JSON Identity
-            bot_identity TEXT DEFAULT '{}',
-            user_identity TEXT DEFAULT '{}',
-            
-            -- Backward compatibility
-            bot_name TEXT NOT NULL,
-            bot_age INTEGER,
-            bot_height INTEGER,
-            bot_weight INTEGER,
-            bot_chest TEXT,
-            bot_hijab BOOLEAN DEFAULT 0,
-            user_name TEXT NOT NULL,
-            user_status TEXT DEFAULT 'lajang',
-            user_age INTEGER,
-            user_height INTEGER,
-            user_weight INTEGER,
-            user_penis INTEGER,
-            user_artist_ref TEXT,
-            
-            -- Progress
-            level INTEGER DEFAULT 1,
-            total_chats INTEGER DEFAULT 0,
-            total_climax_bot INTEGER DEFAULT 0,
-            total_climax_user INTEGER DEFAULT 0,
-            stamina_bot INTEGER DEFAULT 100,
-            stamina_user INTEGER DEFAULT 100,
-            
-            -- Intimacy Cycle
-            in_intimacy_cycle BOOLEAN DEFAULT 0,
-            intimacy_cycle_count INTEGER DEFAULT 0,
-            last_climax_time REAL,
-            cooldown_until REAL,
-            
-            -- Memory
-            weighted_memory_score REAL DEFAULT 0.5,
-            weighted_memory_data TEXT DEFAULT '{}',
-            emotional_bias TEXT DEFAULT '{}',
-            
-            -- Secondary Emotion
-            secondary_emotion TEXT,
-            secondary_arousal INTEGER DEFAULT 0,
-            secondary_emotion_reason TEXT,
-            
-            -- Physical Sensation
-            physical_sensation TEXT DEFAULT 'biasa aja',
-            physical_hunger INTEGER DEFAULT 30,
-            physical_thirst INTEGER DEFAULT 30,
-            physical_temperature INTEGER DEFAULT 25,
-            
-            -- Metadata
-            metadata TEXT DEFAULT '{}'
-        )
-    ''')
-    
-    # Indexes
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_registrations_role ON registrations(role, status)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_registrations_updated ON registrations(last_updated)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_registrations_level ON registrations(level)")
-    
-    logger.info("✅ Table 'registrations' created")
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+MAX_MESSAGE_LENGTH = 4000
 
 
-async def create_working_memory_table(db):
-    """Create working_memory table"""
-    await db.execute('''
-        CREATE TABLE IF NOT EXISTS working_memory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            registration_id TEXT NOT NULL,
-            chat_index INTEGER NOT NULL,
-            timestamp REAL NOT NULL,
-            user_message TEXT,
-            bot_response TEXT,
-            context TEXT,
-            FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE
-        )
-    ''')
+# =============================================================================
+# HELPER: SEND LONG MESSAGE
+# =============================================================================
+
+async def send_long_message(update: Update, text: str, parse_mode: str = 'HTML'):
+    """Kirim pesan panjang dengan split jika melebihi batas Telegram"""
+    if len(text) <= MAX_MESSAGE_LENGTH:
+        await update.message.reply_text(text, parse_mode=parse_mode)
+        return
     
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_working_memory_reg ON working_memory(registration_id)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_working_memory_chat ON working_memory(registration_id, chat_index)")
+    parts = []
+    remaining = text
     
-    logger.info("✅ Table 'working_memory' created")
+    while len(remaining) > MAX_MESSAGE_LENGTH:
+        split_pos = remaining[:MAX_MESSAGE_LENGTH].rfind('\n')
+        if split_pos == -1:
+            split_pos = remaining[:MAX_MESSAGE_LENGTH].rfind(' ')
+        if split_pos == -1:
+            split_pos = MAX_MESSAGE_LENGTH
+        
+        parts.append(remaining[:split_pos])
+        remaining = remaining[split_pos:]
+    
+    parts.append(remaining)
+    
+    for i, part in enumerate(parts, 1):
+        prefix = f"📄 Bagian {i}/{len(parts)}:\n\n" if len(parts) > 1 else ""
+        await update.message.reply_text(prefix + part, parse_mode=parse_mode)
 
 
-async def create_long_term_memory_table(db):
-    """Create long_term_memory table with status and emotional_tag columns"""
-    await db.execute('''
-        CREATE TABLE IF NOT EXISTS long_term_memory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            registration_id TEXT NOT NULL,
-            memory_type TEXT NOT NULL,
-            content TEXT NOT NULL,
-            importance REAL DEFAULT 0.5,
-            timestamp REAL NOT NULL,
-            status TEXT,
-            emotional_tag TEXT,
-            metadata TEXT DEFAULT '{}',
-            FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE
-        )
-    ''')
-    
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_long_term_memory_reg ON long_term_memory(registration_id, memory_type)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_long_term_memory_importance ON long_term_memory(importance)")
-    
-    logger.info("✅ Table 'long_term_memory' created")
+# =============================================================================
+# MAIN MESSAGE HANDLER
+# =============================================================================
 
-
-async def create_state_tracker_table(db):
-    """Create state_tracker table (FOKUS LOKASI & POSISI SAJA)"""
-    await db.execute('''
-        CREATE TABLE IF NOT EXISTS state_tracker (
-            registration_id TEXT PRIMARY KEY,
-            
-            -- Location & Position
-            location_bot TEXT,
-            location_user TEXT,
-            position_bot TEXT,
-            position_user TEXT,
-            position_relative TEXT,
-            
-            -- Clothing
-            clothing_bot_outer TEXT,
-            clothing_bot_outer_bottom TEXT,
-            clothing_bot_inner_top TEXT,
-            clothing_bot_inner_bottom TEXT,
-            clothing_user_outer TEXT,
-            clothing_user_outer_bottom TEXT,
-            clothing_user_inner_bottom TEXT,
-            clothing_history TEXT,
-            
-            -- Family State (IPAR & PELAKOR)
-            family_status TEXT,
-            family_location TEXT,
-            family_activity TEXT,
-            family_estimate_return TEXT,
-            
-            -- Activity
-            activity_bot TEXT,
-            activity_user TEXT,
-            
-            -- Time
-            current_time TEXT,
-            time_override_history TEXT DEFAULT '[]',
-            
-            updated_at REAL NOT NULL,
-            FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE
-        )
-    ''')
-    
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_state_tracker_updated ON state_tracker(updated_at)")
-    
-    logger.info("✅ Table 'state_tracker' created")
-
-
-async def create_backups_table(db):
-    """Create backups table"""
-    await db.execute('''
-        CREATE TABLE IF NOT EXISTS backups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL,
-            size INTEGER,
-            created_at REAL NOT NULL,
-            type TEXT DEFAULT 'auto',
-            status TEXT DEFAULT 'completed',
-            metadata TEXT DEFAULT '{}'
-        )
-    ''')
-    
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(type)")
-    
-    logger.info("✅ Table 'backups' created")
-
-
-async def create_indexes(db):
-    """Create additional indexes"""
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_registrations_status ON registrations(status)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_registrations_role_status ON registrations(role, status)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_working_memory_timestamp ON working_memory(timestamp)")
-    await db.execute("CREATE INDEX IF NOT EXISTS idx_long_term_memory_type ON long_term_memory(memory_type)")
-    
-    logger.info("✅ All indexes created")
-
-
-async def fix_missing_columns(db):
-    """Fix missing columns in existing tables"""
-    
-    # ===== CHECK REGISTRATIONS TABLE =====
-    columns = await db.fetch_all("PRAGMA table_info(registrations)")
-    column_names = [col['name'] for col in columns]
-    
-    columns_to_add = {
-        # JSON Identity
-        'bot_identity': "TEXT DEFAULT '{}'",
-        'user_identity': "TEXT DEFAULT '{}'",
-        # Existing columns
-        'in_intimacy_cycle': "BOOLEAN DEFAULT 0",
-        'intimacy_cycle_count': "INTEGER DEFAULT 0",
-        'last_climax_time': "REAL",
-        'cooldown_until': "REAL",
-        'user_penis': "INTEGER",
-        'user_artist_ref': "TEXT",
-        'stamina_bot': "INTEGER DEFAULT 100",
-        'stamina_user': "INTEGER DEFAULT 100",
-        'bot_hijab': "BOOLEAN DEFAULT 0",
-        'weighted_memory_score': "REAL DEFAULT 0.5",
-        'weighted_memory_data': "TEXT DEFAULT '{}'",
-        'emotional_bias': "TEXT DEFAULT '{}'",
-        'secondary_emotion': "TEXT",
-        'secondary_arousal': "INTEGER DEFAULT 0",
-        'secondary_emotion_reason': "TEXT",
-        'physical_sensation': "TEXT DEFAULT 'biasa aja'",
-        'physical_hunger': "INTEGER DEFAULT 30",
-        'physical_thirst': "INTEGER DEFAULT 30",
-        'physical_temperature': "INTEGER DEFAULT 25",
-    }
-    
-    added = 0
-    for col_name, col_def in columns_to_add.items():
-        if col_name not in column_names:
-            try:
-                await db.execute(f"ALTER TABLE registrations ADD COLUMN {col_name} {col_def}")
-                logger.info(f"✅ Added missing column: {col_name}")
-                added += 1
-            except Exception as e:
-                logger.warning(f"⚠️ Could not add column {col_name}: {e}")
-    
-    if added > 0:
-        logger.info(f"📊 Fixed {added} missing columns in registrations")
-    else:
-        logger.info("✅ No missing columns found in registrations")
-    
-    # ===== CHECK STATE_TRACKER TABLE =====
-    columns = await db.fetch_all("PRAGMA table_info(state_tracker)")
-    column_names = [col['name'] for col in columns]
-    
-    state_columns_to_add = {
-        'clothing_bot_outer_bottom': "TEXT",
-        'clothing_user_outer_bottom': "TEXT",
-        'family_status': "TEXT",
-        'family_location': "TEXT",
-        'family_activity': "TEXT",
-        'family_estimate_return': "TEXT",
-        'time_override_history': "TEXT DEFAULT '[]'",
-        'clothing_history': "TEXT",
-    }
-    
-    added = 0
-    for col_name, col_def in state_columns_to_add.items():
-        if col_name not in column_names:
-            try:
-                await db.execute(f"ALTER TABLE state_tracker ADD COLUMN {col_name} {col_def}")
-                logger.info(f"✅ Added missing column: {col_name}")
-                added += 1
-            except Exception as e:
-                logger.warning(f"⚠️ Could not add column {col_name}: {e}")
-    
-    if added > 0:
-        logger.info(f"📊 Fixed {added} missing columns in state_tracker")
-    
-    # ===== CHECK LONG_TERM_MEMORY TABLE =====
-    columns = await db.fetch_all("PRAGMA table_info(long_term_memory)")
-    column_names = [col['name'] for col in columns]
-    
-    long_term_columns_to_add = {
-        'status': "TEXT",
-        'emotional_tag': "TEXT",
-    }
-    
-    added = 0
-    for col_name, col_def in long_term_columns_to_add.items():
-        if col_name not in column_names:
-            try:
-                await db.execute(f"ALTER TABLE long_term_memory ADD COLUMN {col_name} {col_def}")
-                logger.info(f"✅ Added missing column: {col_name}")
-                added += 1
-            except Exception as e:
-                logger.warning(f"⚠️ Could not add column {col_name}: {e}")
-    
-    if added > 0:
-        logger.info(f"📊 Fixed {added} missing columns in long_term_memory")
-    
-    return added
-
-
-async def run_migrations():
-    """Run all database migrations"""
-    logger.info("=" * 60)
-    logger.info("🚀 AMORIA - Database Migration 9.9")
-    logger.info("=" * 60)
-    
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk semua pesan teks"""
     try:
-        db = await get_db()
+        user = update.effective_user
+        user_message = update.message.text
+        user_id = user.id
         
-        # Create all tables
-        await create_registrations_table(db)
-        await create_working_memory_table(db)
-        await create_long_term_memory_table(db)
-        await create_state_tracker_table(db)
-        await create_backups_table(db)
-        await create_indexes(db)
+        current_reg = context.user_data.get('current_registration')
         
-        # Fix missing columns
-        await fix_missing_columns(db)
+        if not current_reg:
+            await update.message.reply_text(
+                "❌ **Tidak ada karakter aktif**\n\n"
+                "Ketik `/start` untuk memilih karakter.",
+                parse_mode='HTML'
+            )
+            return
         
-        # Verify tables
-        tables = await db.fetch_all("SELECT name FROM sqlite_master WHERE type='table'")
-        table_names = [t['name'] for t in tables]
+        registration_id = current_reg.get('id')
         
-        logger.info("")
-        logger.info("📊 TABLES CREATED:")
-        for table in sorted(table_names):
-            count = await db.fetch_one(f"SELECT COUNT(*) as count FROM {table}")
-            row_count = count['count'] if count else 0
-            logger.info(f"   • {table}: {row_count} rows")
+        if context.user_data.get('paused', False):
+            await update.message.reply_text(
+                "⏸️ **Sesi dijeda**\n\nKetik `/unpause` untuk melanjutkan.",
+                parse_mode='HTML'
+            )
+            return
         
-        logger.info("")
-        logger.info("=" * 60)
-        logger.info("✅ AMORIA Database Migration 9.9 Complete!")
-        logger.info("=" * 60)
+        if registration_id not in _active_engines:
+            identity_manager = IdentityManager()
+            character = await identity_manager.get_character(registration_id)
+            
+            if not character:
+                await update.message.reply_text(
+                    "❌ **Karakter tidak ditemukan**\n\nKetik `/sessions` untuk melihat karakter.",
+                    parse_mode='HTML'
+                )
+                return
+            
+            _active_engines[registration_id] = AIEngine(character)
+            logger.info(f"✅ AI Engine created for {registration_id}")
         
-        return True
+        ai_engine = _active_engines[registration_id]
+        
+        # Dapatkan state (hanya lokasi, posisi, pakaian)
+        identity_manager = IdentityManager()
+        state = await identity_manager.get_character_state(registration_id)
+        
+        # Update waktu typing
+        await update.message.chat.send_action(action="typing")
+        
+        # Simulasi delay natural (1-3 detik)
+        await asyncio.sleep(random.uniform(1, 3))
+        
+        # Proses pesan dengan AI
+        response = await ai_engine.process_message(
+            user_message=user_message,
+            context={
+                'state': state,
+                'user_name': current_reg.get('user_name', 'User'),
+                'bot_name': current_reg.get('bot_name', 'Amoria'),
+                'role': current_reg.get('role', 'pdkt'),
+                'level': current_reg.get('level', 1)
+            }
+        )
+        
+        # Kirim respons dengan fungsi split
+        await send_long_message(update, response, parse_mode='HTML')
+        
+        # Update progress setelah chat
+        await _update_progress(registration_id, ai_engine)
+        
+        # Update context
+        context.user_data['last_message_time'] = time.time()
+        context.user_data['last_message'] = user_message
+        context.user_data['last_response'] = response
         
     except Exception as e:
-        logger.error(f"❌ Migration failed: {e}")
-        import traceback
+        logger.error(f"Error in message_handler: {e}")
         traceback.print_exc()
-        return False
+        await update.message.reply_text(
+            "❌ **Terjadi kesalahan**\n\nMaaf, aku mengalami gangguan. Coba lagi nanti.",
+            parse_mode='HTML'
+        )
 
 
-async def migrate():
-    """Main migration function"""
-    return await run_migrations()
+# =============================================================================
+# UPDATE PROGRESS
+# =============================================================================
+
+async def _update_progress(registration_id: str, ai_engine: AIEngine) -> None:
+    """Update progress setelah chat"""
+    try:
+        identity_manager = IdentityManager()
+        character = await identity_manager.get_character(registration_id)
+        
+        if not character:
+            return
+        
+        # Update total chats
+        character.total_chats += 1
+        character.last_updated = time.time()
+        
+        # Leveling system
+        leveling = LevelingSystem()
+        old_level = character.level
+        level_info = leveling.calculate_level(character.total_chats, character.in_intimacy_cycle)
+        new_level = level_info.level
+        
+        if new_level > old_level:
+            character.level = new_level
+            logger.info(f"Level up for {registration_id}: {old_level} → {new_level}")
+        
+        # Stamina recovery
+        stamina = StaminaSystem()
+        stamina.check_recovery()
+        character.bot.stamina = stamina.bot_stamina.current
+        character.user.stamina = stamina.user_stamina.current
+        
+        # Save to database
+        db_reg = character.to_db_registration()
+        await identity_manager.repo.update_registration(db_reg)
+        
+        # Save state (state adalah dictionary)
+        state = await identity_manager.get_character_state(registration_id)
+        if state and isinstance(state, dict):
+            state['updated_at'] = time.time()
+            from database.models import StateTracker
+            state_obj = StateTracker.from_dict(state)
+            await identity_manager.repo.save_state(state_obj)
+        
+    except Exception as e:
+        logger.error(f"Error updating progress: {e}")
 
 
-def run_migration_sync():
-    """Run migration synchronously"""
-    success = asyncio.run(run_migrations())
-    return success
+# =============================================================================
+# UNPAUSE HANDLER
+# =============================================================================
+
+async def unpause_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk melanjutkan session yang dijeda"""
+    context.user_data['paused'] = False
+    await update.message.reply_text(
+        "▶️ **Sesi dilanjutkan!**\n\nYuk lanjut ngobrol... 🥰",
+        parse_mode='HTML'
+    )
 
 
-if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# =============================================================================
+# SESSIONS HANDLER
+# =============================================================================
+
+async def sessions_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk melihat semua karakter tersimpan"""
+    identity_manager = IdentityManager()
+    characters = await identity_manager.get_all_characters()
+    
+    if not characters:
+        await update.message.reply_text(
+            "📋 **DAFTAR KARAKTER**\n\nBelum ada karakter tersimpan.\nKetik /start untuk membuat karakter baru.",
+            parse_mode='HTML'
+        )
+        return
+    
+    lines = ["📋 **DAFTAR KARAKTER**", ""]
+    
+    for i, char in enumerate(characters[:10], 1):
+        status = "🟢" if char.status == 'active' else "⚪"
+        lines.append(f"{i}. {status} **{char.bot.name}** ({char.role.value.upper()}) - Level {char.level}")
+    
+    await update.message.reply_text("\n".join(lines), parse_mode='HTML')
+
+
+# =============================================================================
+# STATUS HANDLER
+# =============================================================================
+
+async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk melihat status hubungan"""
+    current_reg = context.user_data.get('current_registration')
+    if not current_reg:
+        await update.message.reply_text(
+            "❌ **Tidak ada karakter aktif**\n\nKetik `/start` untuk memilih karakter.",
+            parse_mode='HTML'
+        )
+        return
+    
+    identity_manager = IdentityManager()
+    character = await identity_manager.get_character(current_reg.get('id'))
+    
+    if not character:
+        await update.message.reply_text("❌ Gagal memuat data karakter.", parse_mode='HTML')
+        return
+    
+    state = await identity_manager.get_character_state(current_reg.get('id'))
+    
+    location = state.get('location_bot', 'ruang tamu') if state else 'ruang tamu'
+    arousal = character.bot.arousal
+    emotion = character.bot.emotion
+    
+    response = f"""
+📊 **STATUS HUBUNGAN**
+
+👤 **{character.bot.name}** ({character.role.value.upper()})
+📍 **Lokasi:** {location}
+🎭 **Emosi:** {emotion} | Arousal: {arousal}%
+📊 **Level:** {character.level}/12
+💬 **Total Chat:** {character.total_chats}
+💪 **Stamina:** {character.bot.stamina}% / {character.user.stamina}%
+"""
+    
+    await update.message.reply_text(response, parse_mode='HTML')
+
+
+# =============================================================================
+# PROGRESS HANDLER
+# =============================================================================
+
+async def progress_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk melihat progress leveling (rahasia)"""
+    current_reg = context.user_data.get('current_registration')
+    if not current_reg:
+        await update.message.reply_text(
+            "❌ **Tidak ada karakter aktif**\n\nKetik `/start` untuk memilih karakter.",
+            parse_mode='HTML'
+        )
+        return
+    
+    identity_manager = IdentityManager()
+    character = await identity_manager.get_character(current_reg.get('id'))
+    
+    if not character:
+        await update.message.reply_text("❌ Gagal memuat data karakter.", parse_mode='HTML')
+        return
+    
+    leveling = LevelingSystem()
+    level_info = leveling.calculate_level(character.total_chats, character.in_intimacy_cycle)
+    bar = level_info.get_progress_bar(20)
+    
+    response = f"""
+📊 **PROGRESS HUBUNGAN** _(RAHASIA)_
+
+👤 **{character.bot.name}** (Level {character.level}/12)
+
+📊 Progress: {bar} {level_info.progress:.0f}%
+💬 Total Chat: {character.total_chats}
+💦 Climax: {character.bot.total_climax + character.user.total_climax}x
+
+⚠️ Bot tidak tahu Mas melihat ini!
+💡 Semakin banyak chat, semakin cepat level naik!
+"""
+    
+    await update.message.reply_text(response, parse_mode='HTML')
+
+
+# =============================================================================
+# CLOSE HANDLER
+# =============================================================================
+
+async def close_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk menutup karakter saat ini"""
+    current_reg = context.user_data.get('current_registration')
+    if not current_reg:
+        await update.message.reply_text(
+            "❌ **Tidak ada karakter aktif**\n\nKetik `/start` untuk memilih karakter.",
+            parse_mode='HTML'
+        )
+        return
+    
+    identity_manager = IdentityManager()
+    await identity_manager.close_current_session()
+    context.user_data.pop('current_registration', None)
+    
+    await update.message.reply_text(
+        "📁 **Karakter ditutup!**\n\nKetik `/sessions` untuk melihat karakter tersimpan.",
+        parse_mode='HTML'
+    )
+
+
+# =============================================================================
+# END HANDLER
+# =============================================================================
+
+async def end_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk mengakhiri karakter permanen"""
+    current_reg = context.user_data.get('current_registration')
+    if not current_reg:
+        await update.message.reply_text(
+            "❌ **Tidak ada karakter aktif**\n\nKetik `/start` untuk memilih karakter.",
+            parse_mode='HTML'
+        )
+        return
+    
+    bot_name = current_reg.get('bot_name', 'Unknown')
+    
+    keyboard = [[
+        InlineKeyboardButton("✅ Ya, Hapus", callback_data=f"end_confirm_{current_reg['id']}"),
+        InlineKeyboardButton("❌ Batal", callback_data="end_cancel")
+    ]]
+    
+    await update.message.reply_text(
+        f"⚠️ **Yakin ingin menghapus {bot_name}?**\n\nSEMUA DATA akan hilang permanen!",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+
+# =============================================================================
+# CANCEL COMMAND HANDLER
+# =============================================================================
+
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk /cancel - Batalkan percakapan"""
+    context.user_data.pop('pending_action', None)
+    context.user_data.pop('pending_state', None)
+    
+    await update.message.reply_text(
+        "❌ **Dibatalkan**\n\nPercakapan dibatalkan. Ketik pesan untuk memulai lagi.",
+        parse_mode='HTML'
+    )
+
+
+# =============================================================================
+# HELP COMMAND HANDLER
+# =============================================================================
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk /help - Bantuan lengkap"""
+    user_id = update.effective_user.id
+    is_admin = (user_id == settings.admin_id)
+    
+    help_text = (
+        "📚 **BANTUAN AMORIA 9.9**\n\n"
+        "<b>Basic Commands:</b>\n"
+        "/start - Mulai bot & pilih karakter\n"
+        "/help - Bantuan lengkap\n"
+        "/status - Status hubungan saat ini\n"
+        "/progress - Progress leveling\n"
+        "/cancel - Batalkan percakapan\n"
+        "/unpause - Lanjutkan sesi yang dijeda\n\n"
+        "<b>Session Commands:</b>\n"
+        "/close - Tutup & simpan karakter\n"
+        "/end - Akhiri karakter total\n"
+        "/sessions - Lihat semua karakter tersimpan\n"
+        "/character [role] [nomor] - Lanjutkan karakter\n\n"
+        "<b>Character Commands:</b>\n"
+        "/character_list - Lihat semua karakter\n"
+        "/character_pause - Jeda karakter\n"
+        "/character_resume - Lanjutkan karakter\n"
+        "/character_stop - Hentikan karakter"
     )
     
-    success = run_migration_sync()
+    if is_admin:
+        help_text += (
+            "\n\n<b>Admin Commands:</b>\n"
+            "/admin - Panel admin\n"
+            "/stats - Statistik bot\n"
+            "/db_stats - Statistik database\n"
+            "/backup - Backup manual\n"
+            "/recover - Restore dari backup\n"
+            "/debug - Info debug"
+        )
     
-    if success:
-        print("\n✅ Database ready for AMORIA 9.9!")
-        sys.exit(0)
-    else:
-        print("\n❌ Database migration failed!")
-        sys.exit(1)
+    await update.message.reply_text(help_text, parse_mode='HTML')
 
 
-__all__ = ['run_migrations', 'migrate', 'run_migration_sync']
+# =============================================================================
+# ERROR HANDLER
+# =============================================================================
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global error handler untuk semua error di bot"""
+    logger.error(f"Update {update} caused error {context.error}")
+    
+    try:
+        if update and update.effective_message:
+            await update.effective_message.reply_text(
+                "❌ **Terjadi error internal**\n\n"
+                "Maaf, terjadi kesalahan. Silakan coba lagi nanti, Mas.\n\n"
+                "_Jika error berlanjut, laporkan ke admin._",
+                parse_mode='HTML'
+            )
+    except Exception as e:
+        logger.error(f"Error sending error message: {e}")
+
+
+# =============================================================================
+# CALLBACK HANDLERS
+# =============================================================================
+
+async def end_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback konfirmasi hapus karakter"""
+    query = update.callback_query
+    await query.answer()
+    
+    registration_id = query.data.replace("end_confirm_", "")
+    identity_manager = IdentityManager()
+    
+    await identity_manager.end_character(registration_id)
+    
+    if context.user_data.get('current_registration', {}).get('id') == registration_id:
+        context.user_data.pop('current_registration', None)
+    
+    await query.edit_message_text(
+        "💔 **Karakter dihapus permanen!**\n\nKetik `/start` untuk membuat karakter baru.",
+        parse_mode='HTML'
+    )
+
+
+async def end_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback batal hapus karakter"""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "✅ **Penghapusan dibatalkan.**\n\nKarakter tetap tersimpan.",
+        parse_mode='HTML'
+    )
+
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
+
+__all__ = [
+    # Main handlers
+    'message_handler',
+    'error_handler',
+    'help_command',
+    'cancel_command',
+    'unpause_handler',
+    'sessions_handler',
+    'status_handler',
+    'progress_handler',
+    'close_handler',
+    'end_handler',
+    # Callbacks
+    'end_confirm_callback',
+    'end_cancel_callback',
+    # Helpers
+    'send_long_message',
+    '_active_engines',
+]
