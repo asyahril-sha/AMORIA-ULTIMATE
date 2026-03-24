@@ -341,12 +341,11 @@ class TimeState:
     last_update: float = field(default_factory=lambda: time.time())
 
     # =========================
-    # ADVANCE TIME (SMART)
+    # AUTO TIME FLOW
     # =========================
     def advance(self, minutes: int = None):
         now = time.time()
 
-        # AUTO ADVANCE berdasarkan jeda chat
         if minutes is None:
             delta = now - self.last_update
 
@@ -360,16 +359,16 @@ class TimeState:
                 minutes = 10
 
         hour, minute = map(int, self.current.split(':'))
-        total_minutes = hour * 60 + minute + minutes
+        total = hour * 60 + minute + minutes
 
-        new_hour = (total_minutes // 60) % 24
-        new_minute = total_minutes % 60
+        new_hour = (total // 60) % 24
+        new_minute = total % 60
 
         self.current = f"{new_hour:02d}:{new_minute:02d}"
         self.last_update = now
 
     # =========================
-    # OVERRIDE (USER FORCE TIME)
+    # FORCE TIME
     # =========================
     def override(self, new_time: str, reason: str = ""):
         old_time = self.current
@@ -385,12 +384,11 @@ class TimeState:
         self.last_update = time.time()
 
     # =========================
-    # DETECT TIME FROM TEXT
+    # DETECT FROM TEXT
     # =========================
     def detect_and_apply(self, text: str):
         text = text.lower()
 
-        # kata waktu
         mapping = {
             "subuh": "04:00",
             "pagi": "08:00",
@@ -405,18 +403,15 @@ class TimeState:
                 self.override(val, f"user said {key}")
                 return True
 
-        # detect jam format 02:00 / 2:00
         match = re.search(r'(\d{1,2})[:.](\d{2})', text)
         if match:
-            hour = int(match.group(1)) % 24
-            minute = int(match.group(2))
-            self.override(f"{hour:02d}:{minute:02d}", "user explicit time")
+            h = int(match.group(1)) % 24
+            m = int(match.group(2))
+            self.override(f"{h:02d}:{m:02d}", "explicit time")
             return True
 
         return False
 
-    # =========================
-    # TIME CATEGORY
     # =========================
     def get_time_of_day(self) -> str:
         hour = int(self.current.split(':')[0])
@@ -432,27 +427,23 @@ class TimeState:
         return "tengah malam"
 
     # =========================
-    # FEELING (INI YANG BIKIN HIDUP)
-    # =========================
     def get_time_feel(self) -> str:
         hour = int(self.current.split(':')[0])
 
         if 0 <= hour < 5:
-            return "sunyi, dingin, ngantuk berat"
+            return "sunyi, dingin, ngantuk"
         elif 5 <= hour < 9:
-            return "pagi segar, masih santai"
+            return "pagi segar"
         elif 9 <= hour < 12:
-            return "fokus, energi naik"
+            return "fokus"
         elif 12 <= hour < 15:
-            return "sedikit lelah, butuh istirahat"
+            return "lelah"
         elif 15 <= hour < 18:
             return "santai sore"
         elif 18 <= hour < 22:
-            return "hangat, nyaman"
-        else:
-            return "larut malam, mulai lelah"
+            return "hangat malam"
+        return "larut malam"
 
-    # =========================
     def to_dict(self) -> Dict:
         return {
             'current': self.current,
