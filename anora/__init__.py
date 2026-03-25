@@ -16,7 +16,6 @@ from .location_manager import get_anora_location, LocationType, LocationDetail
 from .chat import get_anora_chat
 from .roles import get_anora_roles
 from .intimacy import get_anora_intimacy
-from .places import get_anora_places
 
 __all__ = [
     'get_anora', 'anora',
@@ -28,5 +27,4 @@ __all__ = [
     'get_anora_chat',
     'get_anora_roles',
     'get_anora_intimacy',
-    'get_anora_places',
 ]
