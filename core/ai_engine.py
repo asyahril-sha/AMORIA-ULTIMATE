@@ -340,8 +340,8 @@ class AIEngine:
             instruction = "RESPON (WAJIB: 4-5 kalimat, minimal 700 karakter, alami dan mengalir):"  # 4-5, bukan 2-4
             max_tokens = 600
         else:
-            instruction = "RESPON (bebas panjang, alami dan mengalir):"
-            max_tokens = 800
+            instruction = "RESPON (bebas panjang, alami dan mengalir, pakai desahan):"
+            max_tokens = 1000
 
         messages = [
             {"role": "system", "content": prompt},
@@ -437,7 +437,7 @@ class AIEngine:
                 "*tangan gemetar*",
                 "*mendekat*",
                 "*jantung berdebar*",
-                "*pipi memerah*"
+                "*terangsang*"
             ]
         elif arousal >= 40:
             gestures = [
@@ -517,7 +517,7 @@ Kondisi:
 
 Sixth sense adalah firasat tentang masa depan.
 Format: 🔮 [firasat]
-Buat SINGKAT, maksimal 1 kalimat.
+Buat SINGKAT, maksimal 2 kalimat.
 
 Sixth sense:
 """
@@ -546,7 +546,7 @@ Sixth sense:
         msg_lower = user_message.lower()
         
         # Update location
-        locations = ['kamar', 'dapur', 'ruang tamu', 'teras', 'luar', 'kantor', 'pantai', 'taman', 'kafe', 'mall']
+        locations = ['kamar user', 'kamar mandi', 'kamar tamu', 'kamar kamu', 'kamar hotel', 'mobil', 'dapur', 'ruang tamu', 'teras', 'luar', 'kantor', 'pantai', 'taman', 'kafe', 'mall']
         for loc in locations:
             if loc in msg_lower:
                 state.location_bot = loc
@@ -699,7 +699,7 @@ Sixth sense:
         result = cycle.add_chat()
         
         # Check for climax keywords
-        climax_keywords = ['climax', 'come', 'keluar', 'habis', 'puas', 'puncak', 'climax']
+        climax_keywords = ['climax', 'come', 'keluar', 'habis', 'puas', 'puncak', 'cum', 'orgasme']
         if any(k in user_message.lower() for k in climax_keywords):
             climax_result = cycle.record_climax()
             self.bot.total_climax += 1
