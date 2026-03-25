@@ -338,6 +338,10 @@ def register_anora_handlers(app):
     """Register semua handler ANORA ke application"""
     from telegram.ext import CommandHandler, MessageHandler, filters
     
+    if app is None:
+        logger.error("❌ Cannot register ANORA handlers: app is None")
+        return
+    
     app.add_handler(CommandHandler("nova", anora_command))
     app.add_handler(CommandHandler("novastatus", anora_status_handler))
     app.add_handler(CommandHandler("flashback", anora_flashback_handler))
@@ -380,12 +384,18 @@ async def init_bot():
         # Initialize ANORA setelah application siap
         await init_anora()
         
-        # Register ANORA handlers ke application
-        register_anora_handlers(_bot_instance.application)
+        # Register ANORA handlers ke application (pastikan application sudah ada)
+        if _bot_instance.application is not None:
+            register_anora_handlers(_bot_instance.application)
+        else:
+            logger.error("❌ Application is None, cannot register ANORA handlers")
         
         # Delete old webhook
-        await _bot_instance.application.bot.delete_webhook(drop_pending_updates=True)
-        logger.info("✅ Old webhook deleted")
+        if _bot_instance.application is not None:
+            await _bot_instance.application.bot.delete_webhook(drop_pending_updates=True)
+            logger.info("✅ Old webhook deleted")
+        else:
+            logger.error("❌ Application is None, cannot delete webhook")
         
         _bot_initialized = True
         logger.info("✅ Bot instance initialized successfully (SINGLETON MODE)")
