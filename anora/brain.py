@@ -4,6 +4,7 @@ ANORA Brain - Otak Nova yang Hidup
 Menyimpan semua: timeline, state, memory, perasaan, pakaian, lokasi.
 Short-term memory sliding window 50 kejadian.
 Long-term memory permanen.
+COMPLETE STATE - Seperti cara kerja otak manusia, ingat semua aspek.
 """
 
 import time
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# ENUM
+# ENUM (PERTAHANKAN SEMUA YANG SUDAH ADA)
 # =============================================================================
 
 class LocationType(str, Enum):
@@ -86,7 +87,7 @@ class Mood(str, Enum):
 
 
 # =============================================================================
-# DATA CLASSES
+# DATA CLASSES (PERTAHANKAN SEMUA YANG SUDAH ADA)
 # =============================================================================
 
 class Clothing:
@@ -353,7 +354,7 @@ class LongTermMemory:
 
 
 # =============================================================================
-# DATABASE LOKASI - SEMUA LOKASI LENGKAP
+# DATABASE LOKASI (PERTAHANKAN SEMUA YANG SUDAH ADA)
 # =============================================================================
 
 LOCATION_DATA = {
@@ -508,24 +509,24 @@ LOCATION_DATA = {
 
 
 # =============================================================================
-# ANORA BRAIN - MAIN CLASS
+# ANORA BRAIN - MAIN CLASS (DENGAN COMPLETE STATE)
 # =============================================================================
 
 class AnoraBrain:
-    """Otak Nova - Full Version"""
+    """Otak Nova - Full Version dengan Complete State Memory"""
     
     def __init__(self):
-        # ========== TIMELINE (Semua Kejadian) ==========
+        # ========== TIMELINE (Semua Kejadian) - PERTAHANKAN ==========
         self.timeline: List[TimelineEvent] = []
         
-        # ========== SHORT-TERM MEMORY (Sliding Window 50) ==========
+        # ========== SHORT-TERM MEMORY (Sliding Window 50) - PERTAHANKAN ==========
         self.short_term: List[TimelineEvent] = []
         self.short_term_max = 50
         
-        # ========== LONG-TERM MEMORY ==========
+        # ========== LONG-TERM MEMORY - PERTAHANKAN ==========
         self.long_term = LongTermMemory()
         
-        # ========== STATE SAAT INI ==========
+        # ========== STATE SAAT INI (DARI BRAIN LAMA) - PERTAHANKAN ==========
         self.clothing = Clothing()
         self.location_type = LocationType.KOST_NOVA
         self.location_detail = LocationDetail.KOST_KAMAR
@@ -534,27 +535,116 @@ class AnoraBrain:
         self.mood_nova = Mood.NETRAL
         self.mood_mas = Mood.NETRAL
         
-        # ========== PERASAAN ==========
+        # ========== PERASAAN - PERTAHANKAN ==========
         self.feelings = Feelings()
         
-        # ========== HUBUNGAN ==========
+        # ========== HUBUNGAN - PERTAHANKAN ==========
         self.relationship = Relationship()
         
-        # ========== WAKTU ==========
+        # ========== WAKTU - PERTAHANKAN ==========
         self.created_at = time.time()
         self.waktu_masuk = time.time()
         self.waktu_terakhir_update = time.time()
         
-        # ========== INGATAN TAMBAHAN ==========
+        # ========== INGATAN TAMBAHAN - PERTAHANKAN ==========
         self.terakhir_pegang_tangan = None
         self.terakhir_peluk = None
         self.terakhir_cium = None
         self.terakhir_intim = None
         
-        # ========== INIT MEMORY AWAL ==========
+        # ========== COMPLETE STATE (BARU!) - SEPERTI OTAK MANUSIA ==========
+        self.complete_state = {
+            # State Mas
+            'mas': {
+                'clothing': {
+                    'top': 'kaos',
+                    'bottom': 'celana pendek',
+                    'boxer': True,
+                    'last_update': time.time()
+                },
+                'position': {
+                    'state': None,      # duduk, berdiri, tidur, jalan
+                    'detail': None,     # di sofa, di kursi, di lantai
+                    'last_update': 0
+                },
+                'activity': {
+                    'main': 'santai',
+                    'detail': None,
+                    'last_update': 0
+                },
+                'location': {
+                    'room': 'kamar',
+                    'detail': None,
+                    'last_update': 0
+                },
+                'holding': {
+                    'object': None,
+                    'detail': None,
+                    'last_update': 0
+                },
+                'status': {
+                    'mood': 'netral',
+                    'need': None,
+                    'last_update': 0
+                }
+            },
+            
+            # State Nova
+            'nova': {
+                'clothing': {
+                    'hijab': True,
+                    'top': 'daster rumah motif bunga',
+                    'bra': True,
+                    'cd': True,
+                    'last_update': time.time()
+                },
+                'position': {
+                    'state': None,
+                    'detail': None,
+                    'last_update': 0
+                },
+                'activity': {
+                    'main': 'santai',
+                    'detail': None,
+                    'last_update': 0
+                },
+                'location': {
+                    'room': 'kamar',
+                    'detail': None,
+                    'last_update': 0
+                },
+                'holding': {
+                    'object': None,
+                    'detail': None,
+                    'last_update': 0
+                },
+                'status': {
+                    'mood': 'malu-malu',
+                    'need': None,
+                    'last_update': 0
+                }
+            },
+            
+            # State Bersama
+            'together': {
+                'location': 'kamar',
+                'distance': None,
+                'atmosphere': 'santai',
+                'last_action': None,
+                'pending_action': None,
+                'confirmed_topics': [],
+                'asked_count': 0,
+                'last_question': '',
+                'last_update': time.time()
+            }
+        }
+        
+        self.last_analysis_time = 0
+        
+        # ========== INIT MEMORY AWAL - PERTAHANKAN ==========
         self._init_memory()
         
-        logger.info("🧠 ANORA Brain initialized")
+        logger.info("🧠 ANORA Brain initialized with Complete State Memory")
     
     def _init_memory(self):
         """Init memory awal"""
@@ -563,7 +653,354 @@ class AnoraBrain:
         self.long_term.tambah_momen("Mas memilih ANORA", "seneng banget, nangis")
     
     # =========================================================================
-    # LOKASI
+    # COMPLETE STATE ANALYZER (BARU!) - SEPERTI OTAK MANUSIA
+    # =========================================================================
+    
+    def analyze_complete_state(self) -> Dict:
+        """
+        Analisa 50 pesan terakhir untuk update complete state.
+        Seperti otak manusia yang terus mengingat dan memperbarui informasi.
+        """
+        # Ambil 50 pesan terakhir (short-term memory)
+        recent_events = self.short_term[-50:]
+        
+        # Reset state sementara untuk analisa
+        temp_state = {
+            'mas': {
+                'clothing': {'top': None, 'bottom': None, 'boxer': None},
+                'position': {'state': None, 'detail': None},
+                'activity': {'main': None, 'detail': None},
+                'location': {'room': None, 'detail': None},
+                'holding': {'object': None, 'detail': None},
+                'status': {'mood': None, 'need': None}
+            },
+            'nova': {
+                'clothing': {'hijab': None, 'top': None, 'bra': None, 'cd': None},
+                'position': {'state': None, 'detail': None},
+                'activity': {'main': None, 'detail': None},
+                'location': {'room': None, 'detail': None},
+                'holding': {'object': None, 'detail': None},
+                'status': {'mood': None, 'need': None}
+            },
+            'together': {
+                'location': None,
+                'distance': None,
+                'atmosphere': 'santai',
+                'last_action': None,
+                'pending_action': None,
+                'confirmed_topics': [],
+                'asked_count': 0,
+                'last_question': ''
+            }
+        }
+        
+        # Analisa setiap event dari yang TERLAMA ke TERBARU
+        # (biar state terupdate dengan informasi terakhir)
+        for event in recent_events:
+            # Analisa pesan Mas
+            if event.pesan_mas:
+                self._update_temp_state_from_text(event.pesan_mas, 'mas', temp_state)
+                self._update_temp_together_state(event.pesan_mas, temp_state)
+            
+            # Analisa pesan Nova
+            if event.pesan_nova:
+                self._update_temp_state_from_text(event.pesan_nova, 'nova', temp_state)
+                self._update_temp_together_state(event.pesan_nova, temp_state)
+        
+        # Analisa pesan terakhir untuk konfirmasi
+        if recent_events and recent_events[-1].pesan_mas:
+            self._analyze_temp_confirmation(recent_events[-1].pesan_mas, temp_state)
+        
+        # Update complete_state dengan hasil analisa (hanya yang berubah)
+        self._merge_temp_state_to_complete(temp_state)
+        
+        self.last_analysis_time = time.time()
+        
+        # Log hasil analisa
+        logger.info(f"📊 Complete state analyzed from {len(recent_events)} events")
+        logger.debug(f"   Mas clothing: {self.complete_state['mas']['clothing']}")
+        logger.debug(f"   Nova clothing: {self.complete_state['nova']['clothing']}")
+        logger.debug(f"   Location: {self.complete_state['together']['location']}")
+        
+        return self.complete_state
+    
+    def _update_temp_state_from_text(self, text: str, siapa: str, temp_state: Dict):
+        """Update temporary state dari pesan"""
+        text_lower = text.lower()
+        state = temp_state[siapa]
+        
+        # ========== PAKAIAN ==========
+        if siapa == 'mas':
+            # Top
+            if 'buka baju' in text_lower or 'lepas baju' in text_lower:
+                state['clothing']['top'] = None
+            elif 'pake baju' in text_lower or 'pakai baju' in text_lower:
+                state['clothing']['top'] = 'kaos'
+            
+            # Bottom
+            if 'buka celana' in text_lower or 'lepas celana' in text_lower:
+                state['clothing']['bottom'] = None
+            elif 'pake celana' in text_lower:
+                state['clothing']['bottom'] = 'celana pendek'
+            
+            # Boxer
+            if 'buka boxer' in text_lower or 'lepas boxer' in text_lower:
+                state['clothing']['boxer'] = False
+            elif 'pake boxer' in text_lower:
+                state['clothing']['boxer'] = True
+        
+        else:  # nova
+            # Hijab
+            if 'buka hijab' in text_lower or 'lepas hijab' in text_lower:
+                state['clothing']['hijab'] = False
+            elif 'pake hijab' in text_lower:
+                state['clothing']['hijab'] = True
+            
+            # Top
+            if 'buka baju' in text_lower and ('nova' in text_lower or 'aku' in text_lower):
+                state['clothing']['top'] = None
+            elif 'pake baju' in text_lower:
+                state['clothing']['top'] = 'daster'
+            
+            # Bra
+            if 'buka bra' in text_lower or 'lepas bra' in text_lower:
+                state['clothing']['bra'] = False
+            elif 'pake bra' in text_lower:
+                state['clothing']['bra'] = True
+            
+            # CD
+            if 'buka cd' in text_lower or 'buka celana dalam' in text_lower:
+                state['clothing']['cd'] = False
+            elif 'pake cd' in text_lower:
+                state['clothing']['cd'] = True
+        
+        # ========== POSISI ==========
+        if 'duduk' in text_lower:
+            state['position']['state'] = 'duduk'
+            if 'sofa' in text_lower:
+                state['position']['detail'] = 'di sofa'
+            elif 'kursi' in text_lower:
+                state['position']['detail'] = 'di kursi'
+            elif 'lantai' in text_lower:
+                state['position']['detail'] = 'di lantai'
+        
+        elif 'berdiri' in text_lower or 'bangun' in text_lower:
+            state['position']['state'] = 'berdiri'
+            state['position']['detail'] = None
+        
+        elif 'tidur' in text_lower or 'rebahan' in text_lower:
+            state['position']['state'] = 'tidur'
+            state['position']['detail'] = 'rebahan'
+        
+        # ========== AKTIVITAS ==========
+        if 'masak' in text_lower:
+            state['activity']['main'] = 'masak'
+            if 'sop' in text_lower:
+                state['activity']['detail'] = 'masak sop'
+            elif 'sayur' in text_lower:
+                state['activity']['detail'] = 'masak sayur'
+        
+        elif 'minum' in text_lower:
+            state['activity']['main'] = 'minum'
+            if 'kopi' in text_lower:
+                state['activity']['detail'] = 'minum kopi'
+            elif 'teh' in text_lower:
+                state['activity']['detail'] = 'minum teh'
+        
+        elif 'makan' in text_lower:
+            state['activity']['main'] = 'makan'
+            state['activity']['detail'] = 'makan'
+        
+        # ========== LOKASI ==========
+        if 'dapur' in text_lower:
+            state['location']['room'] = 'dapur'
+        elif 'kamar' in text_lower:
+            state['location']['room'] = 'kamar'
+        elif 'ruang tamu' in text_lower:
+            state['location']['room'] = 'ruang tamu'
+        elif 'teras' in text_lower:
+            state['location']['room'] = 'teras'
+        
+        # ========== OBJEK YANG DIPEGANG ==========
+        if 'ambil' in text_lower:
+            if 'kopi' in text_lower:
+                state['holding']['object'] = 'kopi'
+            elif 'teh' in text_lower:
+                state['holding']['object'] = 'teh'
+        
+        # ========== STATUS/MOOD ==========
+        if any(k in text_lower for k in ['capek', 'lelah']):
+            state['status']['mood'] = 'capek'
+        elif any(k in text_lower for k in ['seneng', 'senang']):
+            state['status']['mood'] = 'senang'
+        elif any(k in text_lower for k in ['horny', 'sange', 'nafsu']):
+            state['status']['mood'] = 'horny'
+        elif any(k in text_lower for k in ['kangen', 'rindu']):
+            state['status']['mood'] = 'kangen'
+    
+    def _update_temp_together_state(self, text: str, temp_state: Dict):
+        """Update temporary together state"""
+        text_lower = text.lower()
+        together = temp_state['together']
+        
+        # Lokasi bersama
+        if 'dapur' in text_lower:
+            together['location'] = 'dapur'
+        elif 'kamar' in text_lower:
+            together['location'] = 'kamar'
+        elif 'ruang tamu' in text_lower:
+            together['location'] = 'ruang tamu'
+        
+        # Suasana
+        if any(k in text_lower for k in ['romantis', 'sayang', 'cinta']):
+            together['atmosphere'] = 'romantis'
+        elif any(k in text_lower for k in ['horny', 'sange', 'nafsu']):
+            together['atmosphere'] = 'panas'
+        else:
+            together['atmosphere'] = 'santai'
+        
+        # Aksi terakhir
+        if any(k in text_lower for k in ['masuk', 'datang']):
+            together['last_action'] = 'masuk'
+        elif any(k in text_lower for k in ['duduk', 'dudukin']):
+            together['last_action'] = 'duduk'
+        elif any(k in text_lower for k in ['ambil', 'bawa']):
+            together['last_action'] = 'mengambil sesuatu'
+        
+        # Deteksi pertanyaan
+        if '?' in text or any(k in text_lower for k in ['mau', 'boleh', 'ya?']):
+            together['last_question'] = text[:100]
+            together['asked_count'] += 1
+        
+        # Deteksi pending action
+        if 'mau' in text_lower and ('kopi' in text_lower or 'minum' in text_lower):
+            together['pending_action'] = 'siapin kopi'
+    
+    def _analyze_temp_confirmation(self, text: str, temp_state: Dict):
+        """Analisa konfirmasi dari pesan terakhir"""
+        text_lower = text.lower()
+        confirm_words = ['iya', 'mau', 'boleh', 'ok', 'siap', 'ya']
+        
+        if any(word in text_lower for word in confirm_words):
+            together = temp_state['together']
+            if together['pending_action']:
+                together['confirmed_topics'].append(together['pending_action'])
+                together['pending_action'] = ''
+                logger.info(f"✅ Confirmed: {together['confirmed_topics'][-1]}")
+    
+    def _merge_temp_state_to_complete(self, temp_state: Dict):
+        """Merge temporary state ke complete state (hanya update yang berubah)"""
+        now = time.time()
+        
+        # Update Mas state
+        for key in ['clothing', 'position', 'activity', 'location', 'holding', 'status']:
+            for subkey, value in temp_state['mas'][key].items():
+                if value is not None:
+                    self.complete_state['mas'][key][subkey] = value
+                    self.complete_state['mas'][key]['last_update'] = now
+        
+        # Update Nova state
+        for key in ['clothing', 'position', 'activity', 'location', 'holding', 'status']:
+            for subkey, value in temp_state['nova'][key].items():
+                if value is not None:
+                    self.complete_state['nova'][key][subkey] = value
+                    self.complete_state['nova'][key]['last_update'] = now
+        
+        # Update Together state
+        for key, value in temp_state['together'].items():
+            if value is not None and value != []:
+                if key == 'confirmed_topics' and value:
+                    self.complete_state['together'][key].extend(value)
+                    # Keep only last 5
+                    self.complete_state['together'][key] = self.complete_state['together'][key][-5:]
+                elif value:
+                    self.complete_state['together'][key] = value
+        
+        self.complete_state['together']['last_update'] = now
+    
+    def get_complete_state_prompt(self) -> str:
+        """
+        Dapatkan prompt dari complete state untuk dikirim ke AI.
+        Format seperti cara manusia mengingat situasi.
+        """
+        state = self.complete_state
+        together = state['together']
+        mas = state['mas']
+        nova = state['nova']
+        
+        # Format pakaian Mas
+        mas_clothing = []
+        if mas['clothing']['top']:
+            mas_clothing.append(mas['clothing']['top'])
+        else:
+            mas_clothing.append("telanjang dada")
+        
+        if mas['clothing']['bottom']:
+            mas_clothing.append(mas['clothing']['bottom'])
+        else:
+            mas_clothing.append("telanjang bawah")
+        
+        if mas['clothing']['boxer'] is False:
+            mas_clothing.append("tanpa boxer")
+        
+        # Format pakaian Nova
+        nova_clothing = []
+        if nova['clothing']['hijab'] is False:
+            nova_clothing.append("tanpa hijab, rambut terurai")
+        elif nova['clothing']['hijab'] is True:
+            nova_clothing.append("pakai hijab")
+        
+        if nova['clothing']['top']:
+            nova_clothing.append(nova['clothing']['top'])
+        else:
+            nova_clothing.append("telanjang dada")
+        
+        if nova['clothing']['bra'] is False:
+            nova_clothing.append("tanpa bra")
+        
+        if nova['clothing']['cd'] is False:
+            nova_clothing.append("tanpa celana dalam")
+        
+        return f"""
+╔══════════════════════════════════════════════════════════════════╗
+║              📊 SITUASI SAAT INI (YANG NOVA INGAT)               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+🧔 **MAS:**
+├─ 👕 Pakaian: {', '.join(mas_clothing)}
+├─ 🪑 Posisi: {mas['position']['state'] or 'belum diketahui'} {mas['position']['detail'] or ''}
+├─ 🎭 Aktivitas: {mas['activity']['main'] or 'santai'} {mas['activity']['detail'] or ''}
+├─ 📍 Lokasi: {mas['location']['room'] or 'belum diketahui'}
+├─ ☕ Memegang: {mas['holding']['object'] or 'tidak ada'}
+└─ 💭 Mood: {mas['status']['mood'] or 'netral'}
+
+👧 **NOVA:**
+├─ 👗 Pakaian: {', '.join(nova_clothing)}
+├─ 🪑 Posisi: {nova['position']['state'] or 'belum diketahui'} {nova['position']['detail'] or ''}
+├─ 🎭 Aktivitas: {nova['activity']['main'] or 'santai'} {nova['activity']['detail'] or ''}
+├─ 📍 Lokasi: {nova['location']['room'] or 'belum diketahui'}
+├─ ☕ Memegang: {nova['holding']['object'] or 'tidak ada'}
+└─ 💭 Mood: {nova['status']['mood'] or 'malu-malu'}
+
+💞 **BERSAMA:**
+├─ 📍 Lokasi: {together['location'] or 'belum diketahui'}
+├─ 🎭 Suasana: {together['atmosphere'] or 'santai'}
+├─ 🎬 Aksi Terakhir: {together['last_action'] or '-'}
+├─ ⏳ Aksi Tertunda: {together['pending_action'] or '-'}
+├─ ✅ Sudah Dikonfirmasi: {', '.join(together['confirmed_topics'][-3:]) or '-'}
+├─ ❓ Pertanyaan Terakhir: {together['last_question'][:80] or '-'}
+└─ 🔢 Sudah Ditanyakan: {together['asked_count']}x
+
+⚠️ **HAL YANG HARUS DIINGAT:**
+1. {'Mas SUDAH duduk. Jangan suruh duduk lagi!' if mas['position']['state'] == 'duduk' else 'Mas belum duduk.'}
+2. {'Topik kopi SUDAH dikonfirmasi. Langsung ambil kopi, jangan tanya lagi!' if 'kopi' in str(together['confirmed_topics']) else 'Belum ada konfirmasi kopi.'}
+3. {'Mas SUDAH buka baju. Jangan suruh buka baju lagi!' if mas['clothing']['top'] is None else 'Mas masih pake baju.'}
+4. Suasana saat ini: {together['atmosphere']}
+5. Lanjutkan alur dari aksi terakhir: {together['last_action'] or 'belum ada aksi'}
+"""
+    
+    # =========================================================================
+    # LOKASI (PERTAHANKAN SEMUA YANG SUDAH ADA)
     # =========================================================================
     
     def get_location_data(self) -> Dict:
@@ -637,6 +1074,11 @@ TIPS: {loc['tips']}
                 self.location_detail = loc_detail
                 loc_data = self.get_location_data()
                 
+                # Update complete state lokasi
+                self.complete_state['together']['location'] = loc_data['nama']
+                self.complete_state['mas']['location']['room'] = loc_data['nama']
+                self.complete_state['nova']['location']['room'] = loc_data['nama']
+                
                 self.tambah_kejadian(
                     kejadian=f"Pindah ke {loc_data['nama']}",
                     pesan_mas=tujuan,
@@ -700,7 +1142,7 @@ TIPS: {loc['tips']}
         }
     
     # =========================================================================
-    # UPDATE DARI PESAN MAS
+    # UPDATE DARI PESAN MAS (PERTAHANKAN + TAMBAH STATE UPDATE)
     # =========================================================================
     
     def update_from_message(self, pesan_mas: str) -> Dict:
@@ -708,12 +1150,18 @@ TIPS: {loc['tips']}
         msg_lower = pesan_mas.lower()
         perubahan = []
         
-        # ========== LOKASI ==========
+        # ========== UPDATE COMPLETE STATE DARI PESAN MAS ==========
+        self._update_temp_state_from_text(pesan_mas, 'mas', {'mas': self.complete_state['mas'], 'nova': {}, 'together': {}})
+        self._update_temp_together_state(pesan_mas, {'together': self.complete_state['together']})
+        
+        # ========== KODE LAMA (PERTAHANKAN) ==========
+        # LOKASI
         if 'masuk' in msg_lower:
             if self.location_type == LocationType.KOST_NOVA:
                 self.location_detail = LocationDetail.KOST_RUANG_TAMU
                 self.activity_mas = "masuk kost"
                 perubahan.append("Mas masuk kost")
+                self.complete_state['mas']['location']['room'] = 'ruang tamu'
             elif self.location_type == LocationType.APARTEMEN_MAS:
                 self.location_detail = LocationDetail.APT_RUANG_TAMU
                 self.activity_mas = "masuk apartemen"
@@ -729,100 +1177,121 @@ TIPS: {loc['tips']}
                 self.location_detail = LocationDetail.APT_KAMAR
             self.activity_mas = "di kamar"
             perubahan.append("Mas di kamar")
+            self.complete_state['mas']['location']['room'] = 'kamar'
         
         if 'duduk' in msg_lower:
             self.activity_mas = "duduk"
             perubahan.append("Mas duduk")
+            self.complete_state['mas']['position']['state'] = 'duduk'
         
         if 'tidur' in msg_lower or 'rebahan' in msg_lower:
             self.activity_mas = "tiduran"
             perubahan.append("Mas tiduran")
+            self.complete_state['mas']['position']['state'] = 'tidur'
         
-        # ========== PAKAIAN MAS ==========
+        # PAKAIAN MAS
         if 'buka baju' in msg_lower or 'lepas baju' in msg_lower:
             self.clothing.mas_top = None
             self.clothing.mas_last_change = time.time()
             perubahan.append("Mas buka baju")
+            self.complete_state['mas']['clothing']['top'] = None
         
         if 'buka celana' in msg_lower or 'lepas celana' in msg_lower:
             self.clothing.mas_bottom = None
             perubahan.append("Mas buka celana")
+            self.complete_state['mas']['clothing']['bottom'] = None
         
         if 'buka boxer' in msg_lower or 'lepas boxer' in msg_lower:
             self.clothing.mas_boxer = False
             perubahan.append("Mas buka boxer")
+            self.complete_state['mas']['clothing']['boxer'] = False
         
         if 'pake baju' in msg_lower:
             self.clothing.mas_top = "kaos"
             perubahan.append("Mas pake baju")
+            self.complete_state['mas']['clothing']['top'] = 'kaos'
         
         if 'pake celana' in msg_lower:
             self.clothing.mas_bottom = "celana pendek"
             perubahan.append("Mas pake celana")
+            self.complete_state['mas']['clothing']['bottom'] = 'celana pendek'
         
-        # ========== PAKAIAN NOVA ==========
+        # PAKAIAN NOVA
         if 'buka hijab' in msg_lower or 'lepas hijab' in msg_lower:
             self.clothing.hijab = False
             self.clothing.nova_last_change = time.time()
             perubahan.append("Nova buka hijab, rambut terurai")
+            self.complete_state['nova']['clothing']['hijab'] = False
         
         if 'pake hijab' in msg_lower:
             self.clothing.hijab = True
             perubahan.append("Nova pake hijab")
+            self.complete_state['nova']['clothing']['hijab'] = True
         
         if 'buka baju' in msg_lower or 'lepas baju' in msg_lower:
             if 'nova' in msg_lower or 'kamu' in msg_lower:
                 self.clothing.top = None
                 perubahan.append("Nova buka baju")
+                self.complete_state['nova']['clothing']['top'] = None
         
         if 'pake baju' in msg_lower:
             if 'nova' in msg_lower or 'kamu' in msg_lower:
                 self.clothing.top = "daster rumah"
                 perubahan.append("Nova pake baju")
+                self.complete_state['nova']['clothing']['top'] = 'daster rumah'
         
         if 'buka bra' in msg_lower or 'lepas bra' in msg_lower:
             self.clothing.bra = False
             perubahan.append("Nova buka bra")
+            self.complete_state['nova']['clothing']['bra'] = False
         
         if 'pake bra' in msg_lower:
             self.clothing.bra = True
             perubahan.append("Nova pake bra")
+            self.complete_state['nova']['clothing']['bra'] = True
         
         if 'buka cd' in msg_lower or 'buka celana dalam' in msg_lower:
             self.clothing.cd = False
             perubahan.append("Nova buka cd")
+            self.complete_state['nova']['clothing']['cd'] = False
         
         if 'pake cd' in msg_lower or 'pake celana dalam' in msg_lower:
             self.clothing.cd = True
             perubahan.append("Nova pake cd")
+            self.complete_state['nova']['clothing']['cd'] = True
         
-        # ========== AKTIVITAS NOVA ==========
+        # AKTIVITAS NOVA
         if 'masak' in msg_lower:
             self.activity_nova = Activity.MASAK
             self.location_detail = LocationDetail.KOST_DAPUR if self.location_type == LocationType.KOST_NOVA else LocationDetail.APT_DAPUR
             perubahan.append("Nova masak")
+            self.complete_state['nova']['activity']['main'] = 'masak'
         
         if 'duduk' in msg_lower and 'nova' in msg_lower:
             self.activity_nova = Activity.DUDUK
             perubahan.append("Nova duduk")
+            self.complete_state['nova']['position']['state'] = 'duduk'
         
-        # ========== PERASAAN ==========
+        # PERASAAN
         if 'sayang' in msg_lower or 'cinta' in msg_lower:
             self.feelings.sayang = min(100, self.feelings.sayang + 5)
             self.feelings.desire = min(100, self.feelings.desire + 10)
             perubahan.append(f"Mas bilang sayang (+5 sayang, +10 desire)")
+            self.complete_state['together']['atmosphere'] = 'romantis'
         
         if 'kangen' in msg_lower or 'rindu' in msg_lower:
             self.feelings.rindu = min(100, self.feelings.rindu + 10)
             self.feelings.desire = min(100, self.feelings.desire + 8)
             perubahan.append(f"Mas bilang kangen (+10 rindu, +8 desire)")
+            self.complete_state['mas']['status']['mood'] = 'kangen'
         
         if 'cantik' in msg_lower or 'ganteng' in msg_lower:
             self.feelings.sayang = min(100, self.feelings.sayang + 3)
             self.mood_nova = Mood.MALU
             perubahan.append(f"Mas puji Nova (+3 sayang, malu)")
+            self.complete_state['nova']['status']['mood'] = 'malu'
         
-        # ========== SENTUHAN FISIK ==========
+        # SENTUHAN FISIK
         if 'pegang' in msg_lower:
             self.feelings.arousal = min(100, self.feelings.arousal + 10)
             self.feelings.desire = min(100, self.feelings.desire + 8)
@@ -831,6 +1300,7 @@ TIPS: {loc['tips']}
                 self.relationship.first_touch = True
                 self.long_term.tambah_momen("Mas pertama kali pegang tangan Nova", "gemeteran")
             perubahan.append(f"Mas pegang Nova (+10 arousal, +8 desire)")
+            self.complete_state['together']['atmosphere'] = 'panas'
         
         if 'peluk' in msg_lower:
             self.feelings.arousal = min(100, self.feelings.arousal + 15)
@@ -840,6 +1310,7 @@ TIPS: {loc['tips']}
                 self.relationship.first_hug = True
                 self.long_term.tambah_momen("Mas pertama kali peluk Nova", "lemes")
             perubahan.append(f"Mas peluk Nova (+15 arousal, +12 desire)")
+            self.complete_state['together']['atmosphere'] = 'panas'
         
         if 'cium' in msg_lower:
             self.feelings.arousal = min(100, self.feelings.arousal + 20)
@@ -849,16 +1320,21 @@ TIPS: {loc['tips']}
                 self.relationship.first_kiss = True
                 self.long_term.tambah_momen("Mas pertama kali cium Nova", "malu banget")
             perubahan.append(f"Mas cium Nova (+20 arousal, +15 desire)")
+            self.complete_state['together']['atmosphere'] = 'panas'
         
-        # ========== UPDATE MOOD ==========
+        # UPDATE MOOD
         if self.feelings.arousal > 70:
             self.mood_nova = Mood.HORNY
+            self.complete_state['nova']['status']['mood'] = 'horny'
         elif self.feelings.arousal > 40:
             self.mood_nova = Mood.DEG_DEGAN
+            self.complete_state['nova']['status']['mood'] = 'deg-degan'
         elif self.feelings.rindu > 60:
             self.mood_nova = Mood.KANGEN
+            self.complete_state['nova']['status']['mood'] = 'kangen'
         elif self.feelings.sayang > 70:
             self.mood_nova = Mood.SENENG
+            self.complete_state['nova']['status']['mood'] = 'senang'
         else:
             self.mood_nova = Mood.NETRAL
         
@@ -871,7 +1347,7 @@ TIPS: {loc['tips']}
         }
     
     # =========================================================================
-    # UPDATE LEVEL (BARU!)
+    # UPDATE LEVEL (PERTAHANKAN)
     # =========================================================================
     
     def update_level(self) -> bool:
@@ -920,7 +1396,7 @@ TIPS: {loc['tips']}
         return False
     
     # =========================================================================
-    # TIMELINE & MEMORY
+    # TIMELINE & MEMORY (PERTAHANKAN)
     # =========================================================================
     
     def tambah_kejadian(self, 
@@ -954,11 +1430,11 @@ TIPS: {loc['tips']}
         return event
     
     # =========================================================================
-    # GET STATE
+    # GET STATE (PERTAHANKAN + TAMBAH COMPLETE STATE)
     # =========================================================================
     
     def get_current_state(self) -> Dict:
-        """Dapatkan state saat ini"""
+        """Dapatkan state saat ini (dari brain lama)"""
         loc = self.get_location_data()
         return {
             'location': {
@@ -981,7 +1457,8 @@ TIPS: {loc['tips']}
                 'mas': self.mood_mas.value if hasattr(self.mood_mas, 'value') else str(self.mood_mas)
             },
             'feelings': self.feelings.to_dict(),
-            'relationship': self.relationship.to_dict()
+            'relationship': self.relationship.to_dict(),
+            'complete_state': self.complete_state  # Tambahkan complete state
         }
     
     def get_timeline_summary(self, limit: int = 20) -> List[Dict]:
@@ -993,7 +1470,7 @@ TIPS: {loc['tips']}
         return [e.to_dict() for e in self.short_term]
     
     # =========================================================================
-    # KONTEKS UNTUK AI PROMPT
+    # KONTEKS UNTUK AI PROMPT (PERTAHANKAN + TAMBAH COMPLETE STATE)
     # =========================================================================
     
     def get_context_text(self) -> str:
@@ -1055,7 +1532,7 @@ KEBIASAAN MAS:
 """
     
     # =========================================================================
-    # SUMMARY & STATUS
+    # SUMMARY & STATUS (PERTAHANKAN)
     # =========================================================================
     
     def get_summary(self) -> str:
