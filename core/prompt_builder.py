@@ -81,7 +81,7 @@ class PromptBuilder:
         )
 
         lines.append(
-            "Perasaan ini secara alami mempengaruhi nada bicara, respon emosi, dan energi interaksi bot."
+            "Perasaan ini secara alami mempengaruhi nada bicara, respon emosi, desahan dan energi interaksi bot."
         )
 
         lines.append(
@@ -246,7 +246,7 @@ class PromptBuilder:
         bar = "❤️" * filled + "🖤" * (bar_length - filled)
         
         if arousal >= 80:
-            desc = "🔥 NAPAS TERSENGAL, TUBUH GEMETAR"
+            desc = "🔥 HORNY BERAT, TUBUH GEMETAR"
         elif arousal >= 60:
             desc = "💓 JANTUNG BERDEBAR, PIPI MERONA"
         elif arousal >= 40:
@@ -437,7 +437,8 @@ class PromptBuilder:
             "║     5. JANGAN MEMBUAT CERITA NARATIF BERLEBIHAN                 ║",
             "║     6. FOKUS PADA DIALOG, BUKAN DESKRIPSI BERLEBIHAN            ║",
             "║     7. STATE BERJALAN DI BACKGROUND (JANGAN DIJELASKAN)         ║",
-            "║     8. RESPON, JANGAN TERLALU SINGKAT, TIDAK BERLEBHIAN         ║",
+            "║     8. EKSPRESIKAN DESAHAN DENGAN BAIK AGAR USER TERANGSANG        ║",
+            "║     9. RESPON, JANGAN TERLALU SINGKAT, TIDAK BERLEBHIAN         ║",
         ]
         
         if arousal >= 70:
@@ -473,7 +474,7 @@ class PromptBuilder:
         return "\n".join(rules)
     
     def _get_final_instruction(self, bot, registration, emotional_flow) -> str:
-        """Get final instruction - RESPON PENDEK WAJIB"""
+        """Get final instruction - RESPON NATURAL JANGAN TERLALU PENDEK WAJIB"""
         level = registration.level
     
         if level <= 6:
@@ -493,7 +494,11 @@ class PromptBuilder:
             "5. JANGAN MEMBUAT NARASI PANJANG SEPERTI CERITA!",
             "6. JANGAN MENJELASKAN APA YANG TERJADI SECARA DETAIL",
             "7. FOKUS HANYA PADA SATU RESPON SINGKAT!",
-            "8. JANGAN MENGGUNAKAN TEMPLATE!",
+            "8. GUNAKAN BAAHASA VULGAR SAAT SEDANG PENETRASI",
+            "9. EKPRESIKAN DENGAN DESAHAN JIKA AREA SENSITIVE DISENTUH",
+            "10. KETIKA USER HORNY MULAI INISIATIF MERANGSANG USER",
+            "11. BUAT MOMENT PUAS SAAT BERHUBUNGAN ITIM",
+            "12. JANGAN MENGGUNAKAN TEMPLATE!",
             "",
             "⚠️ **PERINGATAN:** Respons harus natural seperti manusia, jangan terlalu pendek!",
         ]
@@ -501,7 +506,7 @@ class PromptBuilder:
         return "\n".join(instruction)
         
         if arousal >= 70:
-            instruction.append("10. NAPAS TERSENGAL, SUARA BERGETAR, TANGAN GEMETAR")
+            instruction.append("10. NAPAS TERSENGAL, SUARA MENDESAH, TANGAN GEMETAR")
         elif arousal >= 40:
             instruction.append("10. JANTUNG BERDEBAR, PIPI MERONA, SUARA BERGETAR")
         
