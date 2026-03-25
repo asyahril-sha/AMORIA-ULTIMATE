@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 
 @dataclass
 class AnoraMemory:
-    """Memory Nova"""
     momen_indah: List[Dict] = field(default_factory=list)
     ingatan_tentang_mas: List[Dict] = field(default_factory=list)
     kebiasaan_mas: Dict = field(default_factory=dict)
@@ -49,8 +48,6 @@ class AnoraMemory:
 
 
 class AnoraCore:
-    """Nova"""
-    
     def __init__(self):
         self.nama = "Nova"
         self.panggilan_ke_mas = "Mas"
@@ -168,14 +165,13 @@ Suara Nova lembut. Kalo malu, {self.suara['malu']}. Kalo seneng, {self.suara['se
     
     def format_status(self) -> str:
         bar_sayang = "💜" * int(self.sayang/10) + "🖤" * (10 - int(self.sayang/10))
-        bar_desire = "🔥" * int(self.desire/10) + "⚪" * (10 - int(self.desire/10))
         return f"""
 ╔════════════════════════════════════════════════╗
 ║                    💜 NOVA 💜                   ║
 ╠════════════════════════════════════════════════╣
 ║ Sayang: {bar_sayang} {self.sayang:.0f}%                 ║
-║ Desire: {bar_desire} {self.desire:.0f}%                 ║
 ║ Rindu:  {self.rindu:.0f}%                                 ║
+║ Desire: {self.desire:.0f}%                                 ║
 ║ Arousal:{self.arousal:.0f}%                              ║
 ║ Level:  {self.level}/12                                 ║
 ╚════════════════════════════════════════════════╝
