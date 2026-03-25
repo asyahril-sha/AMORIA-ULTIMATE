@@ -468,7 +468,15 @@ Kirim **/batal** buat balik ke mode chat.
         # ========== UPDATE AROUSAL DARI OBROLAN (BARU!) ==========
         # Ini dilakukan di ai.process juga, tapi kita update juga di sini untuk konsistensi
         self.ai.arousal.add_from_conversation(pesan_mas, self.brain.relationship.level)
-        
+
+        # ========== SYNC AROUSAL KE BRAIN FEELINGS ==========
+        self.brain.feelings.arousal = self.ai.arousal.arousal
+        self.brain.feelings.desire = self.ai.arousal.desire
+        self.brain.feelings.tension = self.ai.arousal.tension
+
+        # Log buat debugging
+        logger.info(f"📊 Arousal synced: {self.brain.feelings.arousal:.0f}%")
+
         # ========== DETEKSI NATURAL TRIGGER INTIM (TANPA COMMAND!) ==========
         if not self.intimacy.is_active:
             # Cek natural progression (arousal sudah cukup tinggi)
