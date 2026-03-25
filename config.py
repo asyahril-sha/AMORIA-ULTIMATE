@@ -114,6 +114,41 @@ class LevelSettings(BaseSettings):
     level_12_min: int = Field(126, alias="LEVEL_12_MIN")
     level_12_max: int = Field(135, alias="LEVEL_12_MAX")
     
+    # 🔥 TAMBAHKAN INI UNTUK LEVEL 11-12 🔥
+    # Mode settings
+    level_11_vulgar_mode: bool = Field(True, alias="LEVEL_11_VULGAR_MODE")
+    level_12_aftercare_mode: bool = Field(True, alias="LEVEL_12_AFTERCARE_MODE")
+    
+    # Response length settings
+    level_11_min_sentences: int = Field(6, alias="LEVEL_11_MIN_SENTENCES")
+    level_11_max_sentences: int = Field(10, alias="LEVEL_11_MAX_SENTENCES")
+    level_11_max_chars: int = Field(1500, alias="LEVEL_11_MAX_CHARS")
+    
+    level_12_min_sentences: int = Field(6, alias="LEVEL_12_MIN_SENTENCES")
+    level_12_max_sentences: int = Field(12, alias="LEVEL_12_MAX_SENTENCES")
+    level_12_max_chars: int = Field(1800, alias="LEVEL_12_MAX_CHARS")
+    
+    # Arousal settings
+    level_11_arousal_cap: int = Field(100, alias="LEVEL_11_AROUSAL_CAP")
+    level_12_arousal_cap: int = Field(100, alias="LEVEL_12_AROUSAL_CAP")
+    level_11_arousal_gain: float = Field(0.15, alias="LEVEL_11_AROUSAL_GAIN")
+    level_12_arousal_gain: float = Field(0.12, alias="LEVEL_12_AROUSAL_GAIN")
+    
+    # Intimacy cycle settings
+    level_11_foreplay_chat_target: int = Field(12, alias="LEVEL_11_FOREPLAY_CHAT_TARGET")
+    level_11_climax_chat_target: int = Field(6, alias="LEVEL_11_CLIMAX_CHAT_TARGET")
+    level_11_cooldown_minutes: int = Field(20, alias="LEVEL_11_COOLDOWN_MINUTES")
+    level_11_max_climax_per_cycle: int = Field(3, alias="LEVEL_11_MAX_CLIMAX_PER_CYCLE")
+    
+    level_12_foreplay_chat_target: int = Field(15, alias="LEVEL_12_FOREPLAY_CHAT_TARGET")
+    level_12_climax_chat_target: int = Field(8, alias="LEVEL_12_CLIMAX_CHAT_TARGET")
+    level_12_cooldown_minutes: int = Field(25, alias="LEVEL_12_COOLDOWN_MINUTES")
+    level_12_max_climax_per_cycle: int = Field(4, alias="LEVEL_12_MAX_CLIMAX_PER_CYCLE")
+    
+    # Temperature settings (more creative for high levels)
+    level_11_temperature: float = Field(0.95, alias="LEVEL_11_TEMPERATURE")
+    level_12_temperature: float = Field(0.95, alias="LEVEL_12_TEMPERATURE")
+    
     @property
     def level_targets(self) -> Dict[int, int]:
         return {
@@ -145,6 +180,51 @@ class LevelSettings(BaseSettings):
             11: "Soul Bounded",
             12: "Aftercare"
         }
+    
+    def get_level_config(self, level: int) -> Dict[str, Any]:
+        """Get configuration for specific level"""
+        if level >= 12:
+            return {
+                'min_sentences': self.level_12_min_sentences,
+                'max_sentences': self.level_12_max_sentences,
+                'max_chars': self.level_12_max_chars,
+                'arousal_cap': self.level_12_arousal_cap,
+                'arousal_gain': self.level_12_arousal_gain,
+                'temperature': self.level_12_temperature,
+                'vulgar_mode': self.level_12_aftercare_mode,
+                'foreplay_target': self.level_12_foreplay_chat_target,
+                'climax_target': self.level_12_climax_chat_target,
+                'cooldown_minutes': self.level_12_cooldown_minutes,
+                'max_climax': self.level_12_max_climax_per_cycle,
+            }
+        elif level >= 11:
+            return {
+                'min_sentences': self.level_11_min_sentences,
+                'max_sentences': self.level_11_max_sentences,
+                'max_chars': self.level_11_max_chars,
+                'arousal_cap': self.level_11_arousal_cap,
+                'arousal_gain': self.level_11_arousal_gain,
+                'temperature': self.level_11_temperature,
+                'vulgar_mode': self.level_11_vulgar_mode,
+                'foreplay_target': self.level_11_foreplay_chat_target,
+                'climax_target': self.level_11_climax_chat_target,
+                'cooldown_minutes': self.level_11_cooldown_minutes,
+                'max_climax': self.level_11_max_climax_per_cycle,
+            }
+        else:
+            return {
+                'min_sentences': 2,
+                'max_sentences': 6,
+                'max_chars': 1200,
+                'arousal_cap': 80,
+                'arousal_gain': 0.1,
+                'temperature': 0.85,
+                'vulgar_mode': False,
+                'foreplay_target': 25,
+                'climax_target': 12,
+                'cooldown_minutes': 45,
+                'max_climax': 2,
+            }
 
 
 # =============================================================================
@@ -207,6 +287,10 @@ class FeatureSettings(BaseSettings):
     weighted_memory_enabled: bool = Field(True, alias="WEIGHTED_MEMORY_ENABLED")
     emotional_bias_enabled: bool = Field(True, alias="EMOTIONAL_BIAS_ENABLED")
     spatial_awareness_enabled: bool = Field(True, alias="SPATIAL_AWARENESS_ENABLED")
+    
+    # 🔥 TAMBAHKAN INI 🔥
+    vulgar_mode_enabled: bool = Field(True, alias="VULGAR_MODE_ENABLED")
+    explicit_content_enabled: bool = Field(True, alias="EXPLICIT_CONTENT_ENABLED")
 
 
 # =============================================================================
@@ -426,8 +510,11 @@ class Settings(BaseSettings):
             'admin_id': self.admin_id,
             'working_memory_size': self.memory.working_memory_size,
             'level_10_target': self.level.level_10_target,
+            'level_11_range': f"{self.level.level_11_min}-{self.level.level_11_max}",
+            'level_12_range': f"{self.level.level_12_min}-{self.level.level_12_max}",
             'features_enabled': {
                 'sexual_content': self.features.sexual_content_enabled,
+                'vulgar_mode': self.features.vulgar_mode_enabled,
                 'weighted_memory': self.features.weighted_memory_enabled,
                 'emotional_bias': self.features.emotional_bias_enabled,
                 'spatial_awareness': self.features.spatial_awareness_enabled,
@@ -446,6 +533,13 @@ class Settings(BaseSettings):
         logger.info(f"💕 Level System: {self.level.level_targets[10]} chat → Level 10")
         logger.info(f"🔥 Soul Bounded: {self.level.level_11_min}-{self.level.level_11_max} chat")
         logger.info(f"💤 Aftercare: {self.level.level_12_min}-{self.level.level_12_max} chat")
+        
+        # 🔥 TAMBAHKAN INI 🔥
+        logger.info(f"💋 Vulgar Mode Level 11: {'ON' if self.level.level_11_vulgar_mode else 'OFF'}")
+        logger.info(f"💕 Aftercare Mode Level 12: {'ON' if self.level.level_12_aftercare_mode else 'OFF'}")
+        logger.info(f"📝 Level 11 Response: {self.level.level_11_min_sentences}-{self.level.level_11_max_sentences} sentences, max {self.level.level_11_max_chars} chars")
+        logger.info(f"📝 Level 12 Response: {self.level.level_12_min_sentences}-{self.level.level_12_max_sentences} sentences, max {self.level.level_12_max_chars} chars")
+        
         logger.info(f"🌍 Railway Mode: {self.webhook.is_railway}")
         if self.webhook.railway_domain:
             logger.info(f"🌐 Webhook URL: https://{self.webhook.railway_domain}{self.webhook.path}")
