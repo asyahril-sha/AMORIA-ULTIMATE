@@ -19,6 +19,7 @@ from aiohttp import web
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
+    ApplicationBuilder,  # ← INI YANG KURANG!
     CommandHandler,
     MessageHandler,
     filters,
@@ -50,8 +51,9 @@ from anora.handlers import (
 from utils.logger import setup_logging
 from utils.error_logger import get_error_logger, print_startup_banner
 from database.migrate import run_migrations
-from bot.application import create_application
 from bot.webhook import setup_webhook_sync, setup_polling, check_webhook_status
+
+# Import AMORIA command handlers
 from command import (
     start_command, help_command, status_command, progress_command,
     cancel_command, sessions_command, character_command, close_command, end_command,
@@ -60,9 +62,18 @@ from command import (
     top_hts_command, my_climax_command, climax_history_command,
     admin_command, stats_command, db_stats_command, backup_command, recover_command, debug_command
 )
-from command.start import SELECTING_ROLE
+
+# Import AMORIA callbacks
+from command.start import (
+    SELECTING_ROLE, role_callback, agree_18_callback, help_callback,
+    continue_current_callback, new_character_callback, cancel_callback,
+    back_to_main_callback
+)
 from command.sessions import end_confirm_callback, end_cancel_callback
 from command.cancel import cancel_confirm_callback, cancel_fallback
+
+# Import message handler
+from bot.handlers import message_handler as amoria_message_handler
 
 # Setup logging
 logger = setup_logging("AMORIA")
@@ -247,7 +258,6 @@ class AmoriaBot:
             # =============================================================
             
             # AMORIA message handler (untuk karakter)
-            from bot.handlers import message_handler as amoria_message_handler
             app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, amoria_message_handler))
             
             # ANORA chat handler (dengan group=1 biar gak override AMORIA)
