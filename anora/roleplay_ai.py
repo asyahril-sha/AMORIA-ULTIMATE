@@ -126,7 +126,7 @@ class ArousalSystem:
             # Level 7+: naik 100%
     
             intensity = max(1, total_gain // 10)
-            self.add_stimulation('mental', intensity))
+            self.add_stimulation('mental', intensity)
             self.add_desire(f'Mas flirt: {pesan_mas[:30]}', total_gain)
     
             # Log biar keliatan
