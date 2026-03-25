@@ -41,6 +41,10 @@ class UserIntent(str, Enum):
     UNDRESS = "undress"
     DRESS = "dress"
     INTIMACY_REQUEST = "intimacy_request"
+    
+    # 🔥 TAMBAHKAN UNTUK LEVEL 11-12 🔥
+    VULGAR = "vulgar"
+    DESIRE = "desire"
 
 
 class Sentiment(str, Enum):
@@ -155,6 +159,20 @@ class IntentAnalyzer:
                 r'\bke\s+kamar\b', r'\bayo\s+ke\s+kamar\b',
                 r'\bkita\s+ke\s+kamar\b', r'\bmain\s+yuk\b',
                 r'\bpengen\s+kamu\b', r'\bmau\s+nggak\b'
+            ],
+            
+            # 🔥 TAMBAHKAN UNTUK LEVEL 11-12 🔥
+            UserIntent.VULGAR: [
+                r'\bngocok\b', r'\bngentot\b', r'\bngewe\b',
+                r'\btitit\b', r'\bmemek\b', r'\bkontol\b',
+                r'\bngocok\b', r'\bmainin\b', r'\bhisap\b',
+                r'\bjilat\b', r'\bcolok\b', r'\bentot\b'
+            ],
+            UserIntent.DESIRE: [
+                r'\bpengen\s+kamu\b', r'\bingin\s+kamu\b', r'\bbutuh\s+kamu\b',
+                r'\bhauss\b', r'\bpanas\b', r'\bgatal\b',
+                r'\bnafsu\b', r'\bberahi\b', r'\bgairah\b',
+                r'\bingin\s+banget\b', r'\bpengen\s+banget\b'
             ]
         }
         
@@ -215,6 +233,11 @@ class IntentAnalyzer:
         # Deteksi apakah ajakan intim
         is_intimacy_request = primary_intent == UserIntent.INTIMACY_REQUEST
         
+        # 🔥 TAMBAHKAN UNTUK LEVEL 11-12 🔥
+        is_vulgar = primary_intent == UserIntent.VULGAR
+        is_desire = primary_intent == UserIntent.DESIRE
+        intensity = 'high' if is_vulgar or is_desire else 'normal'
+        
         # Deteksi lokasi (jika ada)
         location = self._extract_location(message_lower)
         
@@ -225,10 +248,13 @@ class IntentAnalyzer:
             'is_question': is_question,
             'is_move': is_move,
             'is_intimacy_request': is_intimacy_request,
+            'is_vulgar': is_vulgar,  # 🔥 TAMBAHKAN
+            'is_desire': is_desire,  # 🔥 TAMBAHKAN
+            'intensity': intensity,  # 🔥 TAMBAHKAN
             'needs': needs,
             'location': location,
             'message_length': len(message),
-            'has_emoji': any(char in message for char in ['😊', '😘', '❤️', '😢', '😠', '😂', '😍']),
+            'has_emoji': any(char in message for char in ['😊', '😘', '❤️', '😢', '😠', '😂', '😍', '🔥', '💦']),
             'raw_message': message[:100]
         }
     
@@ -253,7 +279,10 @@ class IntentAnalyzer:
         """
         Tentukan intent utama dari pesan
         """
+        # 🔥 PRIORITAS UNTUK LEVEL 11-12 🔥
         priority = [
+            UserIntent.VULGAR,           # 🔥 Tertinggi
+            UserIntent.DESIRE,           # 🔥 Kedua
             UserIntent.INTIMACY_REQUEST,
             UserIntent.SEXUAL,
             UserIntent.CONFESSION,
@@ -328,7 +357,12 @@ class IntentAnalyzer:
             (r'\b(butuh|perlu) (teman|temen)\b', 'need_friend'),
             (r'\b(butuh|perlu) (perhatian|attention)\b', 'need_attention'),
             (r'\b(kesepian|sendirian)\b', 'need_company'),
-            (r'\bbosan\b', 'need_entertainment')
+            (r'\bbosan\b', 'need_entertainment'),
+            
+            # 🔥 TAMBAHKAN UNTUK LEVEL 11-12 🔥
+            (r'\b(mau|ingin|pengen) (kamu|dikamu)\b', 'need_intimacy'),
+            (r'\b(butuh|perlu) (kamu|sentuhan|pelukan)\b', 'need_touch'),
+            (r'\b(haus|panas|gatal)\b', 'need_arousal')
         ]
         
         for pattern, need in need_patterns:
@@ -388,7 +422,11 @@ class IntentAnalyzer:
             UserIntent.RINDU: 'reciprocate',
             UserIntent.MOVE: 'follow_move',
             UserIntent.UNDRESS: 'undress_response',
-            UserIntent.INTIMACY_REQUEST: 'intimacy_response'
+            UserIntent.INTIMACY_REQUEST: 'intimacy_response',
+            
+            # 🔥 TAMBAHKAN UNTUK LEVEL 11-12 🔥
+            UserIntent.VULGAR: 'vulgar_response',
+            UserIntent.DESIRE: 'desire_response'
         }
         
         if sentiment in [Sentiment.NEGATIVE, Sentiment.VERY_NEGATIVE]:
@@ -401,6 +439,15 @@ class IntentAnalyzer:
         """
         Format analisis untuk debugging
         """
+        # 🔥 TAMBAHKAN INFO VULGAR 🔥
+        vulgar_info = ""
+        if analysis.get('is_vulgar'):
+            vulgar_info = f"\n• Vulgar: YES (Level 11-12 mode)"
+        if analysis.get('is_desire'):
+            vulgar_info += f"\n• Desire: HIGH"
+        if analysis.get('intensity'):
+            vulgar_info += f"\n• Intensity: {analysis['intensity']}"
+        
         return (
             f"🎯 **INTENT ANALYSIS:**\n"
             f"• Primary: {analysis['primary_intent'].value}\n"
@@ -408,7 +455,7 @@ class IntentAnalyzer:
             f"• Sentiment: {analysis['sentiment'].value}\n"
             f"• Question: {analysis['is_question']}\n"
             f"• Move: {analysis['is_move']}\n"
-            f"• Intimacy Request: {analysis['is_intimacy_request']}\n"
+            f"• Intimacy Request: {analysis['is_intimacy_request']}{vulgar_info}\n"
             f"• Location: {analysis['location'] or 'none'}\n"
             f"• Needs: {analysis['needs']}\n"
             f"• Length: {analysis['message_length']}\n"
