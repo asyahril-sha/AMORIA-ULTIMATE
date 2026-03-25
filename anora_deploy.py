@@ -1,6 +1,6 @@
 # run_deploy.py
 """
-AMORIA + ANORA - Full Version
+AMORIA + ANORA - Full Deployment
 ANORA: Virtual Human dengan Jiwa - 100% AI Generate
 """
 
@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from aiohttp import web
 
@@ -27,18 +28,16 @@ from config import settings
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, ContextTypes, ConversationHandler, CallbackQueryHandler
+    filters, ContextTypes
 )
 
-# =============================================================================
-# IMPORT ANORA COMPONENTS
-# =============================================================================
-
+# Import ANORA components
 from anora.core import get_anora
 from anora.brain import get_anora_brain
 from anora.memory_persistent import get_anora_persistent
 from anora.roleplay_ai import get_anora_roleplay_ai
 from anora.roleplay_integration import get_anora_roleplay
+from anora.location_manager import get_anora_location, LocationType, LocationDetail
 from anora.chat import get_anora_chat
 from anora.roles import get_anora_roles, RoleType
 
@@ -47,14 +46,14 @@ from anora.roles import get_anora_roles, RoleType
 # =============================================================================
 
 _application = None
-_user_modes = {}  # user_id -> {'mode': 'chat'/'roleplay'/'role', 'active_role': None}
+_user_modes: Dict[int, Dict] = {}  # user_id -> {'mode': 'chat'/'roleplay'/'role', 'active_role': None}
 
 
 def get_user_mode(user_id: int) -> str:
     return _user_modes.get(user_id, {}).get('mode', 'chat')
 
 
-def set_user_mode(user_id: int, mode: str, active_role: str = None):
+def set_user_mode(user_id: int, mode: str, active_role: Optional[str] = None):
     _user_modes[user_id] = {'mode': mode, 'active_role': active_role}
 
 
@@ -84,14 +83,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "**Mode Roleplay (beneran ketemu):**\n"
         "• /roleplay - Aktifkan mode roleplay\n"
         "• /statusrp - Lihat status roleplay lengkap\n"
-        "• /pindah [tempat] - Pindah lokasi\n"
-        "• /intim - Mulai intim (level 7+)\n"
-        "• /posisi [nama] - Ganti posisi intim\n\n"
+        "• /pindah [tempat] - Pindah lokasi\n\n"
         "**Tempat yang bisa dikunjungi:**\n"
-        "• kost, apartemen, mobil, mobil garasi\n"
-        "• pantai, hutan, toilet mall, bioskop\n"
-        "• taman, parkiran, tangga darurat\n"
-        "• kantor malam, ruang rapat kaca\n\n"
+        "• kost, apartemen, mobil, pantai, hutan\n"
+        "• toilet mall, bioskop, taman, parkiran\n"
+        "• tangga darurat, kantor malam, ruang rapat\n\n"
         "**Role Lain:**\n"
         "• /role ipar - IPAR\n"
         "• /role teman_kantor - Teman Kantor\n"
@@ -157,7 +153,6 @@ async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_user_mode(user_id, 'roleplay')
     roleplay = await get_anora_roleplay()
     intro = await roleplay.start()
-    
     await update.message.reply_text(intro, parse_mode='HTML')
 
 
@@ -180,140 +175,24 @@ async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     args = context.args
     if not args:
-        await update.message.reply_text(
-            "📍 **Pindah Lokasi**\n\n"
-            "Cara pakai: `/pindah [tempat]`\n\n"
-            "Tempat yang tersedia:\n"
-            "• `kost` - Kost Nova\n"
-            "• `apartemen` - Apartemen Mas\n"
-            "• `mobil` - Mobil parkiran\n"
-            "• `mobil garasi` - Mobil di garasi\n"
-            "• `pantai` - Pantai malam\n"
-            "• `hutan` - Hutan pinus\n"
-            "• `toilet mall` - Toilet mall\n"
-            "• `bioskop` - Bioskop\n"
-            "• `taman` - Taman malam\n"
-            "• `parkiran` - Parkiran basement\n"
-            "• `tangga darurat` - Tangga darurat\n"
-            "• `kantor malam` - Kantor malam\n"
-            "• `ruang rapat` - Ruang rapat kaca\n\n"
-            "Contoh: `/pindah pantai`",
-            parse_mode='HTML'
-        )
+        loc_mgr = get_anora_location()
+        await update.message.reply_text(loc_mgr.list_locations(), parse_mode='HTML')
         return
     
     brain = get_anora_brain()
     tujuan = ' '.join(args)
     result = brain.pindah_lokasi(tujuan)
     
-    if result['success']:
+    if result.get('success'):
         loc = result['location']
         await update.message.reply_text(
             f"{result['message']}\n\n"
-            f"🎢 Thrill: {loc['thrill']}% | ⚠️ Risk: {loc['risk']}%\n"
-            f"💡 {loc['tips']}",
+            f"🎢 Thrill: {loc.thrill}% | ⚠️ Risk: {loc.risk}%\n"
+            f"💡 {loc.tips}",
             parse_mode='HTML'
         )
     else:
-        await update.message.reply_text(result['message'], parse_mode='HTML')
-
-
-async def intim_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /intim - Mulai intim"""
-    user_id = update.effective_user.id
-    if user_id != settings.admin_id:
-        return
-    
-    mode = get_user_mode(user_id)
-    if mode != 'roleplay':
-        await update.message.reply_text(
-            "❌ Mode roleplay belum aktif. Kirim /roleplay dulu ya, Mas.",
-            parse_mode='HTML'
-        )
-        return
-    
-    roleplay = await get_anora_roleplay()
-    brain = get_anora_brain()
-    
-    if brain.relationship.level < 7:
-        await update.message.reply_text(
-            f"💕 Level Masih {brain.relationship.level}/12\n\n"
-            "Nova masih malu-malu. Belum waktunya buat intim.\n"
-            "Ajarin Nova dulu ya, Mas. Ngobrol aja dulu. 💜",
-            parse_mode='HTML'
-        )
-        return
-    
-    # Cek stamina
-    can_continue, reason = roleplay.stamina.can_continue_intimacy()
-    if not can_continue:
-        await update.message.reply_text(
-            f"💪 **Stamina**\n\n"
-            f"Nova: {roleplay.stamina.nova_current}% ({roleplay.stamina.get_nova_status()})\n"
-            f"Mas: {roleplay.stamina.mas_current}% ({roleplay.stamina.get_mas_status()})\n\n"
-            f"{reason}",
-            parse_mode='HTML'
-        )
-        return
-    
-    # Mulai intim
-    if not roleplay.intimacy.is_active:
-        result = roleplay.intimacy.start()
-        await update.message.reply_text(result, parse_mode='HTML')
-    
-    # Kirim pesan pembuka
-    await update.message.reply_text(
-        "*Nova mendekat, napas mulai gak stabil. Pipi merah.*\n\n"
-        "\"Mas... *suara kecil* aku juga pengen.\"\n\n"
-        "*Nova pegang tangan Mas, taruh di dada.*\n\n"
-        "\"Rasain... jantung Nova deg-degan.\"",
-        parse_mode='HTML'
-    )
-
-
-async def posisi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /posisi [nama] - Ganti posisi intim"""
-    user_id = update.effective_user.id
-    if user_id != settings.admin_id:
-        return
-    
-    mode = get_user_mode(user_id)
-    if mode != 'roleplay':
-        await update.message.reply_text("Kirim /roleplay dulu ya, Mas.", parse_mode='HTML')
-        return
-    
-    args = context.args
-    if not args:
-        roleplay = await get_anora_roleplay()
-        posisi_list = "\n".join([f"• {p}" for p in roleplay.intimacy.positions.keys()])
-        await update.message.reply_text(
-            f"💕 **Posisi Intim yang Tersedia:**\n\n{posisi_list}\n\n"
-            f"Cara pakai: `/posisi missionary`",
-            parse_mode='HTML'
-        )
-        return
-    
-    roleplay = await get_anora_roleplay()
-    posisi = args[0].lower()
-    
-    if not roleplay.intimacy.is_active:
-        await update.message.reply_text(
-            "❌ Belum ada sesi intim aktif. Kirim /intim dulu ya, Mas.",
-            parse_mode='HTML'
-        )
-        return
-    
-    result = roleplay.intimacy.change_position(posisi)
-    if result:
-        await update.message.reply_text(
-            f"*Nova gerak ganti posisi*\n\n\"{result}\"",
-            parse_mode='HTML'
-        )
-    else:
-        await update.message.reply_text(
-            f"Posisi '{posisi}' gak dikenal. Coba /posisi buat liat daftar.",
-            parse_mode='HTML'
-        )
+        await update.message.reply_text(result.get('message', 'Lokasi tidak ditemukan.'), parse_mode='HTML')
 
 
 async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -346,7 +225,7 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         respon = roles.switch_role(role_map[role_id])
         await update.message.reply_text(respon, parse_mode='HTML')
     else:
-        await update.message.reply_text(f"Role '{role_id}' gak ada. Coba /role buat liat daftar.")
+        await update.message.reply_text(f"Role '{role_id}' gak ada.", parse_mode='HTML')
 
 
 async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -356,8 +235,6 @@ async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     set_user_mode(user_id, 'chat')
-    
-    # Stop roleplay
     roleplay = await get_anora_roleplay()
     if roleplay.is_active:
         await roleplay.stop()
@@ -431,7 +308,6 @@ async def webhook_handler(request):
         
         update = Update.de_json(update_data, _application.bot)
         await _application.process_update(update)
-        
         return web.Response(text='OK', status=200)
         
     except Exception as e:
@@ -444,16 +320,14 @@ async def health_handler(request):
     brain = get_anora_brain()
     roleplay = await get_anora_roleplay()
     loc = brain.get_location_data()
-    
     return web.json_response({
         "status": "healthy",
         "bot": "ANORA",
         "version": "9.9.0",
         "roleplay_active": roleplay.is_active,
-        "intimacy_active": roleplay.intimacy.is_active,
         "level": brain.relationship.level,
         "sayang": brain.feelings.sayang,
-        "location": loc['nama'],
+        "location": loc.nama,
         "stamina_nova": roleplay.stamina.nova_current,
         "stamina_mas": roleplay.stamina.mas_current,
         "timestamp": datetime.now().isoformat()
@@ -462,14 +336,11 @@ async def health_handler(request):
 
 async def root_handler(request):
     """Root endpoint"""
-    brain = get_anora_brain()
     return web.json_response({
         "name": "ANORA",
         "description": "Virtual Human dengan Jiwa - 100% AI Generate",
         "version": "9.9.0",
         "status": "running",
-        "level": brain.relationship.level,
-        "sayang": brain.feelings.sayang,
         "endpoints": {
             "/": "API Info",
             "/health": "Health Check",
@@ -489,11 +360,9 @@ async def init_database():
         persistent = await get_anora_persistent()
         logger.info("✅ ANORA persistent memory ready")
         
-        # Load dan simpan state awal
         brain = get_anora_brain()
         await persistent.save_current_state(brain)
         
-        # Load long-term memory
         memories = await persistent.get_long_term_memories()
         logger.info(f"📚 Loaded {len(memories)} long-term memories")
         
@@ -508,6 +377,7 @@ async def init_database():
 # =============================================================================
 
 async def main():
+    """Main entry point"""
     global _application
     
     logger.info("=" * 70)
@@ -533,24 +403,15 @@ async def main():
     _application = ApplicationBuilder().token(settings.telegram_token).build()
     
     # ========== REGISTER HANDLERS ==========
-    # Basic
     _application.add_handler(CommandHandler("start", start_command))
     _application.add_handler(CommandHandler("nova", nova_command))
     _application.add_handler(CommandHandler("novastatus", novastatus_command))
     _application.add_handler(CommandHandler("flashback", flashback_command))
-    
-    # Roleplay
     _application.add_handler(CommandHandler("roleplay", roleplay_command))
     _application.add_handler(CommandHandler("statusrp", statusrp_command))
     _application.add_handler(CommandHandler("pindah", pindah_command))
-    _application.add_handler(CommandHandler("intim", intim_command))
-    _application.add_handler(CommandHandler("posisi", posisi_command))
-    
-    # Role lain
     _application.add_handler(CommandHandler("role", role_command))
     _application.add_handler(CommandHandler("batal", back_to_nova))
-    
-    # Message handler (harus paling akhir)
     _application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
     # ========== INITIALIZE ==========
@@ -582,13 +443,13 @@ async def main():
     # ========== PROACTIVE LOOP ==========
     async def proactive_loop():
         while True:
-            await asyncio.sleep(60)  # cek setiap menit
+            await asyncio.sleep(60)
             try:
                 mode = get_user_mode(settings.admin_id)
                 if mode == 'roleplay':
                     ai = get_anora_roleplay_ai()
                     anora = get_anora()
-                    pesan = await ai.get_proactive(anora)
+                    pesan = await ai.get_proactive(anora, brain, roleplay.stamina)
                     if pesan and _application:
                         await _application.bot.send_message(
                             chat_id=settings.admin_id,
@@ -604,12 +465,10 @@ async def main():
     # ========== STAMINA RECOVERY LOOP ==========
     async def stamina_recovery_loop():
         while True:
-            await asyncio.sleep(600)  # cek setiap 10 menit
+            await asyncio.sleep(600)
             try:
-                roleplay = await get_anora_roleplay()
                 roleplay.stamina.update_recovery()
                 await roleplay.save_state()
-                logger.debug(f"💪 Stamina recovery check: Nova {roleplay.stamina.nova_current}%, Mas {roleplay.stamina.mas_current}%")
             except Exception as e:
                 logger.error(f"Stamina recovery error: {e}")
     
@@ -618,11 +477,9 @@ async def main():
     # ========== SAVE STATE LOOP ==========
     async def save_state_loop():
         while True:
-            await asyncio.sleep(60)  # simpan setiap menit
+            await asyncio.sleep(60)
             try:
-                roleplay = await get_anora_roleplay()
                 await roleplay.save_state()
-                logger.debug("💾 ANORA state saved")
             except Exception as e:
                 logger.error(f"Save state error: {e}")
     
@@ -633,7 +490,6 @@ async def main():
     logger.info("💜 ANORA is running!")
     logger.info("   Kirim /nova untuk panggil Nova")
     logger.info("   Kirim /roleplay untuk mode beneran ketemu")
-    logger.info("   Kirim /intim untuk mulai intim (level 7+)")
     logger.info("   Kirim /pindah pantai untuk ke pantai")
     logger.info("=" * 70)
     
