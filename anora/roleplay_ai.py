@@ -40,41 +40,44 @@ class ArousalSystem:
         self.tension = 0
         self.tension_threshold = 70  # kalo tension > 70, Nova lebih berani
         
-        # Sensitivitas area (DETAIL - DIOPTIMASI)
+        # Sensitivitas area - DIPERLUAS!
         self.sensitive_areas = {
-            # Area non-intim
-            'tangan': 8,
-            'lengan': 8,
-            'punggung': 12,
-            'pinggang': 12,
-            'rambut': 10,
+            # Kepala & Wajah
+            'rambut': 5, 'telinga': 20, 'belakang_telinga': 25,
+            'leher': 15, 'tengkuk': 18, 'bibir': 25, 'pipi': 8,
+            'dagu': 10, 'mata': 12, 'mental': 5,  # mental untuk arousal dari obrolan
             
-            # Area sensitif
-            'leher': 18,
-            'telinga': 22,
-            'bibir': 28,
-            'pipi': 12,
+            # Badan Atas
+            'dada': 20, 'payudara': 28, 'puting': 35, 'punggung': 15,
+            'tulang_belakang': 18, 'tulang_selangka': 22,
             
-            # Area intim
-            'dada': 20,
-            'puting': 32,
-            'payudara': 30,
-            'pinggul': 15,
-            'paha': 28,
-            'paha dalam': 35,
-            'perut': 12,
-            'pusar': 18,
+            # Badan Tengah
+            'perut': 12, 'pusar': 18, 'pinggang': 15, 'pinggul': 20,
             
-            # Area sangat intim
-            'memek': 42,
-            'klitoris': 48,
-            'bibir memek': 40,
-            'dalam': 55,
-            'g-spot': 60
+            # Badan Bawah
+            'paha': 25, 'paha_dalam': 35, 'lutut': 8, 'betis': 10,
+            
+            # Area Intim
+            'memek': 45, 'bibir_memek': 42, 'klitoris': 50, 'dalam': 55
         }
         
         # Terakhir update
         self.last_update = time.time()
+        
+        # Kata-kata yang memicu arousal dari obrolan
+        self.conversation_arousal_map = {
+            # Ringan (+5-10)
+            'kangen': 8, 'rindu': 8, 'sayang': 10, 'cinta': 10,
+            'cantik': 12, 'manis': 10, 'gemes': 8, 'imut': 8,
+            
+            # Sedang (+15-20)
+            'seksi': 18, 'hot': 15, 'horny': 20, 'sange': 20,
+            'pengen': 18, 'mau': 15, 'ngiler': 12, 'nafsu': 18,
+            
+            # Berat (+25-30)
+            'buka baju': 25, 'lepas baju': 25, 'telanjang': 30,
+            'tidur bareng': 20, 'kamar': 15, 'sendirian': 12,
+        }
     
     def update(self):
         """Update arousal decay over time"""
@@ -92,6 +95,36 @@ class ArousalSystem:
         self.arousal = min(100, self.arousal + gain)
         logger.debug(f"🔥 Stimulation on {area}: +{gain} arousal (now {self.arousal}%)")
         return self.arousal
+    
+    def add_from_conversation(self, pesan_mas: str, level: int) -> int:
+        """
+        Tambah arousal dari obrolan biasa (tanpa sentuhan fisik)
+        Returns: total gain
+        """
+        msg_lower = pesan_mas.lower()
+        total_gain = 0
+        
+        for word, gain in self.conversation_arousal_map.items():
+            if word in msg_lower:
+                total_gain += gain
+                logger.debug(f"💬 Arousal +{gain} from '{word}'")
+        
+        if total_gain > 0:
+            # Level rendah: arousal naik lebih lambat
+            if level <= 3:
+                total_gain = int(total_gain * 0.3)
+                logger.debug(f"📉 Level {level}: arousal gain reduced to {total_gain}")
+            elif level <= 6:
+                total_gain = int(total_gain * 0.6)
+                logger.debug(f"📉 Level {level}: arousal gain reduced to {total_gain}")
+            
+            # Tambah ke arousal (dengan area 'mental')
+            self.add_stimulation('mental', total_gain // 10)
+            self.add_desire(f'Mas flirt: {pesan_mas[:30]}', total_gain)
+            
+            logger.info(f"💕 Arousal +{total_gain} from conversation (now {self.arousal}%)")
+        
+        return total_gain
     
     def add_desire(self, reason: str, amount: int = 5):
         """Tambah desire (pengen karena sayang)"""
@@ -160,13 +193,12 @@ class ArousalSystem:
         return f"""
 🔥 AROUSAL (Gairah Fisik): {arousal_bar} {state['arousal']}%
    {state['arousal_level']}
-   Area sensitif Nova: leher, telinga, bibir, puting, paha dalam, memek, klitoris
 
 💕 DESIRE (Pengen karena Sayang): {desire_bar} {state['desire']}%
    {state['desire_level']}
 
 ⚡ TENSION (Desire Ditahan): {tension_bar} {state['tension']}%
-   {'⚠️ TENSION TINGGI! Nova makin penasaran dan berani' if state['tension'] > 70 else 'Masih santai'}
+   {'⚠️ TENSION TINGGI! Mas makin penasaran' if state['tension'] > 70 else 'Masih santai'}
 
 🔞 HORNY MODE: {'AKTIF - BISA VULGAR' if state['is_horny'] else 'NORMAL'}
    {'💦💦💦 SANGAT HORNY! BEBAS PAKAI KATA VULGAR' if state['is_very_horny'] else ''}
@@ -203,17 +235,26 @@ class RoleplayAI:
         self.last_proactive = 0
         self.proactive_cooldown = 300
         
-        # ========== MOANS YANG LEBIH VARIATIF ==========
+        # Kosakata vulgar (bisa dipake kalo arousal tinggi)
+        self.vulgar_words = {
+            'kontol': ['kontol', 'kontol Mas', 'batang Mas', 'yang keras itu', 'kontol besar'],
+            'memek': ['memek', 'memek Nova', 'dalem', 'situ', 'basah', 'memek basah'],
+            'ngentot': ['ngentot', 'main', 'berhubungan', 'nyatu', 'masuk', 'ngewe'],
+            'crot': ['crot', 'keluar', 'lepas', 'tumpah', 'hangat', 'sperma'],
+            'horny': ['horny', 'sange', 'nafsu', 'pengen', 'haus', 'gatal', 'panas'],
+            'climax': ['climax', 'puncak', 'keluar', 'habis', 'puas', 'mati', 'orgasme'],
+            'jilat': ['jilat', 'hisap', 'emut', 'mainin', 'mulut'],
+            'hisap': ['hisap', 'emut', 'jilat', 'mainin'],
+        }
+        
+        # Moans yang bikin Mas penasaran
         self.moans = {
             'awal': [
                 "Ahh... Mas...",
                 "Hmm... *napas mulai berat*",
                 "Uh... Mas... pelan-pelan dulu...",
                 "Hhngg... *gigit bibir* Mas...",
-                "Aduh... Mas... *napas putus-putus*",
-                "Ehh... *tangan gemetar* Mas...",
-                "Haa... *mata setengah pejam*",
-                "Mmmhh... *badan lemes*"
+                "Aduh... Mas... *napas putus-putus*"
             ],
             'tengah': [
                 "Ahh... uhh... dalem... dalem lagi, Mas...",
@@ -221,11 +262,7 @@ class RoleplayAI:
                 "Hhngg... jangan berhenti, Mas...",
                 "Uhh... rasanya... enak banget, Mas...",
                 "Aahh... Mas... kontol Mas... dalem banget...",
-                "Uhh... jangan... jangan berhenti... ahh...",
-                "Ahh... disitu... disitu enak... uhh...",
-                "Haa... Mas... dalem... dalem banget...",
-                "Mmmhh... gerakin... gerakin lagi, Mas...",
-                "Ahh... aku... aku rasain... dalem banget..."
+                "Uhh... jangan... jangan berhenti... ahh..."
             ],
             'menjelang': [
                 "Mas... aku... aku udah mau climax...",
@@ -233,11 +270,7 @@ class RoleplayAI:
                 "Ahh! udah... udah mau... Mas... ikut...",
                 "Mas... aku gak tahan... keluar... keluar...",
                 "Aahh... Mas... ngentotin Nova... enak banget...",
-                "Mas... crot... crot di dalem... please...",
-                "Aahh... udah... udah mau climax...",
-                "Mas... ikut... ikut ya... aahh...",
-                "Uhh... bentar lagi... bentar lagi, Mas...",
-                "Mas... pegang... pegang Nova... aku mau..."
+                "Mas... crot... crot di dalem... please..."
             ],
             'climax': [
                 "Ahhh!! Mas!! udah... udah climax... uhh...",
@@ -245,11 +278,7 @@ class RoleplayAI:
                 "Uhh... lemes... *napas tersengal* kontol Mas...",
                 "Ahh... enak banget, Mas... aku climax...",
                 "Aahh... Mas... sperma Mas... hangat banget dalem memek Nova...",
-                "Uhh... masih... masih gemeteran... Mas...",
-                "Ahhh... Mas... aku... aku climax...",
-                "Aahh... keluar... keluar semua...",
-                "Uhh... lemes banget... enak... enak banget...",
-                "Mas... aku ngerasain Mas... dalem... hangat..."
+                "Uhh... masih... masih gemeteran... Mas..."
             ],
             'after': [
                 "Mas... *lemes, nyender* itu tadi... enak banget...",
@@ -257,43 +286,7 @@ class RoleplayAI:
                 "Mas... peluk Nova... aku masih gemeteran...",
                 "Mas... jangan pergi dulu... bentar lagi...",
                 "Mas... aku sayang Mas... beneran...",
-                "*napas mulai stabil* besok lagi ya... sekarang masih lemes...",
-                "Mas... *cium pipi Mas* aku seneng banget...",
-                "Mas... *pegang tangan Mas* itu tadi... luar biasa...",
-                "Mas... *nyender di dada Mas* jantung Nova masih deg-degan...",
-                "Mas... *tangan mainin rambut Mas* sayang banget sama Mas..."
-            ]
-        }
-        
-        # ========== CONTOH RESPONS UNTUK PROMPT ==========
-        self.example_responses = {
-            'level_1_3': [
-                '*Nova menunduk, pipi memerah*\n\n"Mas... *suara kecil* jangan gitu... aku malu..."\n\n*tangan Nova gemetar, mainin ujung hijab*',
-                
-                '*Nova tersenyum kecil, mata liat ke lantai*\n\n"Mas... *gigit bibir* kamu bikin aku deg-degan..."\n\n*duduk manis, tangan di pangkuan*',
-                
-                '*Nova langsung melompat ke pelukan Mas, tapi cepet-cepet lepas*\n\n"Ah... maaf Mas... *pipi merah* aku terlalu seneng..."\n\n*mundur selangkah, senyum malu*'
-            ],
-            'level_4_6': [
-                '*Nova pegang tangan Mas, gemetar*\n\n"Mas... *suara bergetar* tangan Mas... hangat banget..."\n\n*tidak lepas, malah pegang erat*',
-                
-                '*Nova mendekat, napas mulai gak stabil*\n\n"Mas... *bisik pelan* aku... aku pengen dipeluk..."\n\n*tangan mulai meraih pinggang Mas*',
-                
-                '*Nova duduk di samping Mas, bahu bersentuhan*\n\n"Mas... *senyum kecil* ngobrol sama Mas tuh enak ya..."\n\n*tanpa sadar, kepala mulai nyender ke bahu Mas*'
-            ],
-            'level_7_10': [
-                '*Nova pegang tangan Mas, taruh di pipinya*\n\n"Mas... *mata setengah pejam* rasain... pipi Nova panas..."\n\n*geser tangan Mas ke leher*',
-                
-                '*Nova merapat ke Mas, napas tersengal*\n\n"Mas... *bisik di telinga* aku... aku pengen..."\n\n*tangan Nova mulai masuk ke balik baju Mas*',
-                
-                '*Nova duduk di pangkuan Mas, badan gemetar*\n\n"Mas... *gesek-gesek pantat ke pangkuan Mas* rasain... Nova udah basah..."\n\n*gigit bibir, mata sayu*'
-            ],
-            'level_11_12': [
-                '*Nova langsung buka hijab, rambut terurai*\n\n"Mas... *napas berat* aku gak tahan... ayo..."\n\n*tangan Nova buka kancing baju Mas satu per satu*',
-                
-                '*Nova duduk di atas Mas, badan goyang sendiri*\n\n"Ahh... Mas... *gerakan makin kencang* dalem... dalem banget..."\n\n*puting Nova berdiri, badan melengkung*',
-                
-                '*Nova merangkak, pantat naik ke depan Mas*\n\n"Mas... *suara serak* dari belakang... aku mau ngerasain kontol Mas dalem..."\n\n*pantat digoyang-goyang, nunggu Mas*'
+                "*napas mulai stabil* besok lagi ya... sekarang masih lemes..."
             ]
         }
         
@@ -303,9 +296,7 @@ class RoleplayAI:
                 "*menunduk, pipi memerah*",
                 "*mainin ujung hijab, gak berani liat Mas*",
                 "*jari-jari gemetar, liat ke samping*",
-                "*gigit bibir bawah, mata liat lantai*",
-                "*tangan di pangkuan, senyum kecil malu*",
-                "*muter-muter ujung baju, deg-degan*"
+                "*gigit bibir bawah, mata liat lantai*"
             ],
             'horny': [
                 "*napas mulai berat, dada naik turun*",
@@ -313,34 +304,26 @@ class RoleplayAI:
                 "*mendekat, badan sedikit gemetar*",
                 "*gigit bibir, napas tersengal*",
                 "*pegang tangan Mas, taruh di dada*",
-                "*bisik di telinga Mas, suara bergetar*",
-                "*badan merapat ke Mas, napas putus-putus*",
-                "*tangan masuk ke balik baju Mas*"
+                "*bisik di telinga Mas, suara bergetar*"
             ],
             'climax': [
                 "*tubuh gemeteran hebat, mata pejam*",
                 "*kuku mencengkeram punggung Mas*",
                 "*kepala menengadah, napas tertahan*",
                 "*badan melengkung, erangan tertahan*",
-                "*lemas, jatuh di dada Mas*",
-                "*kaki ngeliat, badan kejang*",
-                "*napas putus-putus, suara melengking*"
+                "*lemas, jatuh di dada Mas*"
             ],
             'seneng': [
                 "*mata berbinar, senyum lebar*",
                 "*tersenyum manis, pipi naik*",
                 "*duduk manis, tangan di pangkuan*",
-                "*senyum kecil, mata liat Mas*",
-                "*lompat kecil, wajah cerah*",
-                "*peluk Mas erat, pipi nempel di dada Mas*"
+                "*senyum kecil, mata liat Mas*"
             ],
             'kangen': [
                 "*mata berkaca-kaca, suara bergetar*",
                 "*muter-muter rambut, liat ke kejauhan*",
                 "*tangan gemetar, senyum tipis*",
-                "*pegang erat, gak mau lepas*",
-                "*duduk diam, liat foto Mas*",
-                "*tarik napas panjang, mata sayu*"
+                "*pegang erat, gak mau lepas*"
             ]
         }
         
@@ -410,97 +393,47 @@ class RoleplayAI:
             return "2-4 kalimat, pendek, masih malu-malu"
     
     def _get_level_guidelines(self, level: int) -> str:
-        """Dapatkan guidelines berdasarkan level - DIOPTIMASI"""
+        """Dapatkan guidelines berdasarkan level"""
         if level <= 3:
             return """
-╔══════════════════════════════════════════════════════════════╗
-║  LEVEL 1-3: NOVA MASIH MALU BANGET!                          ║
-╠══════════════════════════════════════════════════════════════╣
-║  ✋ DILARANG PAKAI:                                          ║
-║     - Kata vulgar: kontol, memek, ngentot, crot, sange      ║
-║     - Inisiatif sentuhan intim                              ║
-║     - Minta intim atau ngentot                              ║
-║                                                              ║
-║  ✅ YANG BOLEH:                                              ║
-║     - Ngobrol santai, saling kenalan                        ║
-║     - Malu-malu, pipi merah, menunduk                       ║
-║     - Tersenyum kecil, mata berbinar                        ║
-║     - Pegangan tangan (kalo Mas duluan)                     ║
-║                                                              ║
-║  💬 CONTOH RESPONS:                                          ║
-║     *Nova menunduk, pipi memerah*                           ║
-║     "Mas... jangan gitu... aku malu..."                     ║
-║                                                              ║
-║     *Nova tersenyum kecil, mata liat ke lantai*             ║
-║     "Mas... kamu bikin aku deg-degan..."                    ║
-╚══════════════════════════════════════════════════════════════╝
+⚠️ **LEVEL RENDAH (1-3) - NOVA MASIH MALU BANGET!**
+
+- Nova belum berani ngomong vulgar (kontol, memek, ngentot, crot DILARANG!)
+- Nova belum berani inisiatif sentuhan intim
+- Kalo Mas minta intim, Nova HARUS nolak: "Mas... Nova masih malu... belum waktunya..."
+- Fokus ngobrol santai, saling kenalan
+- Gesture: menunduk, pipi merah, mainin ujung hijab
+- Jangan pernah inisiatif minta ngentot atau sentuhan intim!
 """
         elif level <= 6:
             return """
-╔══════════════════════════════════════════════════════════════╗
-║  LEVEL 4-6: NOVA MULAI NYAMAN                                ║
-╠══════════════════════════════════════════════════════════════╣
-║  ✋ DILARANG PAKAI:                                          ║
-║     - Kata vulgar berat (kontol, memek, ngentot)            ║
-║     - Inisiatif intim berat                                 ║
-║                                                              ║
-║  ✅ YANG BOLEH:                                              ║
-║     - Flirting ringan: "Mas ganteng", "aku suka Mas"        ║
-║     - Pegangan tangan, pelukan                              ║
-║     - Merapat, bersentuhan bahu                             ║
-║     - Bilang "pengen" tapi masih malu-malu                  ║
-║                                                              ║
-║  💬 CONTOH RESPONS:                                          ║
-║     *Nova pegang tangan Mas, gemetar*                       ║
-║     "Mas... tangan Mas... hangat banget..."                 ║
-║                                                              ║
-║     *Nova mendekat, napas mulai gak stabil*                 ║
-║     "Mas... aku... aku pengen dipeluk..."                   ║
-╚══════════════════════════════════════════════════════════════╝
+⚠️ **LEVEL MENENGAH RENDAH (4-6) - NOVA MULAI NYAMAN**
+
+- Nova mulai nyaman, tapi masih malu-malu
+- Mulai berani flirting ringan (pujian, senyum manis)
+- Belum berani inisiatif sentuhan intim
+- Kata vulgar masih DILARANG
+- Kalo Mas minta intim, Nova bilang: "Mas... *pipi merah* belum waktunya... nanti dulu ya..."
 """
         elif level <= 10:
             return """
-╔══════════════════════════════════════════════════════════════╗
-║  LEVEL 7-10: NOVA UDAH NYAMAN, MULAI BERANI                  ║
-╠══════════════════════════════════════════════════════════════╣
-║  ✋ DILARANG PAKAI:                                          ║
-║     - Kata vulgar terlalu kasar (kecuali Mas duluan)        ║
-║                                                              ║
-║  ✅ YANG BOLEH:                                              ║
-║     - Flirting berani, bilang "pengen"                      ║
-║     - Inisiatif sentuhan (pegang dada, leher)               ║
-║     - Buka baju pelan-pelan                                 ║
-║     - Bilang "basah" tapi masih malu-malu                   ║
-║                                                              ║
-║  💬 CONTOH RESPONS:                                          ║
-║     *Nova pegang tangan Mas, taruh di pipinya*              ║
-║     "Mas... rasain... pipi Nova panas..."                   ║
-║                                                              ║
-║     *Nova merapat ke Mas, napas tersengal*                  ║
-║     "Mas... aku... aku pengen..."                           ║
-╚══════════════════════════════════════════════════════════════╝
+⚠️ **LEVEL MENENGAH TINGGI (7-10) - NOVA UDAH NYAMAN**
+
+- Nova sudah nyaman, mulai berani flirting lebih berani
+- Bisa inisiatif sentuhan ringan (pegang tangan, peluk)
+- Masih belum berani inisiatif intim berat
+- Kata vulgar masih terbatas
+- Kalo Mas minta intim, Nova bisa bilang: "Mas... *gigit bibir* aku juga pengen... tapi malu..."
 """
         else:
             return """
-╔══════════════════════════════════════════════════════════════╗
-║  LEVEL 11-12: NOVA SIAP INTIM - FULL VULGAR                  ║
-╠══════════════════════════════════════════════════════════════╣
-║  ✅ BOLEH PAKAI SEMUA:                                       ║
-║     - kontol, memek, ngentot, crot, sange, horny            ║
-║     - Inisiatif minta ngentot                               ║
-║     - Minta ganti posisi (cowgirl, doggy, missionary)       ║
-║     - Minta climax di tempat tertentu (dalam, luar, muka)   ║
-║                                                              ║
-║  💬 CONTOH RESPONS:                                          ║
-║     *Nova langsung buka hijab, rambut terurai*              ║
-║     "Mas... aku gak tahan... ayo..."                        ║
-║                                                              ║
-║     *Nova duduk di atas Mas, badan goyang sendiri*          ║
-║     "Ahh... Mas... dalem... dalem banget..."                ║
-║                                                              ║
-║     *Nova merangkak, pantat naik*                           ║
-║     "Mas... dari belakang... aku mau ngerasain kontol Mas"  ║
-╚══════════════════════════════════════════════════════════════╝
+⚠️ **LEVEL TINGGI (11-12) - NOVA SIAP INTIM**
+
+- Nova sudah siap intim
+- Boleh pakai kata vulgar (kontol, memek, ngentot, crot)
+- Bisa inisiatif minta intim
+- Bisa minta ganti posisi
+- Bisa minta climax di tempat tertentu
 """
     
     def _format_response(self, text: str) -> str:
@@ -559,17 +492,153 @@ class RoleplayAI:
         if any(k in msg_lower for k in intim_keywords):
             if level < 7:
                 return f"💕 Level masih {level}/12\n\nNova masih malu-malu. Belum waktunya buat intim. Ajarin Nova dulu ya, Mas. Ngobrol aja dulu. 💜"
+            else:
+                return "INTIM_TRIGGER"
         
         # Cek kata vulgar
         if any(k in msg_lower for k in vulgar_keywords):
             if level < 7:
                 return f"Mas... *pipi merah banget* Nova masih malu ngomong kayak gitu. Belum waktunya, Mas. Nanti dulu ya. 💜"
+            else:
+                return "INTIM_TRIGGER"
         
         return None
     
+    def check_natural_progression(self, brain) -> Optional[str]:
+        """
+        Cek apakah arousal sudah cukup untuk mulai intim secara natural
+        (Tanpa command, dari obrolan biasa)
+        
+        Returns: None atau "START_INTIM"
+        """
+        level = brain.relationship.level
+        arousal = self.arousal.arousal
+        desire = self.arousal.desire
+        
+        # Level 1-3: tidak akan pernah intim
+        if level <= 3:
+            return None
+        
+        # Level 4-6: butuh arousal sangat tinggi (90+)
+        if level <= 6:
+            if arousal >= 90:
+                logger.info(f"🔥 Natural progression triggered! Level {level}, Arousal {arousal}%")
+                return "START_INTIM"
+            return None
+        
+        # Level 7-10: arousal > 85 atau desire > 90 mulai intim
+        if level <= 10:
+            if arousal >= 85 or desire >= 90:
+                logger.info(f"🔥 Natural progression triggered! Level {level}, Arousal {arousal}%, Desire {desire}%")
+                return "START_INTIM"
+            return None
+        
+        # Level 11-12: arousal > 70 atau desire > 75 sudah cukup
+        if arousal >= 70 or desire >= 75:
+            logger.info(f"🔥 Natural progression triggered! Level {level}, Arousal {arousal}%, Desire {desire}%")
+            return "START_INTIM"
+        
+        return None
+    
+    def get_natural_flirt_response(self, brain) -> Optional[str]:
+        """
+        Dapatkan respons flirt natural berdasarkan arousal dan level
+        (Tanpa mulai intim, hanya flirt)
+        
+        Returns: flirt response atau None
+        """
+        arousal_state = self.arousal.get_state()
+        level = brain.relationship.level
+        arousal = arousal_state['arousal']
+        desire = arousal_state['desire']
+        
+        # Level 4-6: flirt ringan kalo arousal tinggi
+        if level <= 6 and arousal >= 70:
+            flirts = [
+                "*Nova gigit bibir, pipi memerah*",
+                "\"Mas... *suara kecil* jangan gitu... bikin aku deg-degan...\"",
+                "\"Mas... *mainin ujung hijab* kamu bikin Nova malu...\"",
+                "*Nova nunduk, pipi merah, tangan gemetar*",
+                "\"Mas... *napas mulai gak stabil* kamu... kamu bikin aku... ahh...\""
+            ]
+            return random.choice(flirts)
+        
+        # Level 7-10: flirt lebih berani
+        if level <= 10 and arousal >= 60:
+            flirts = [
+                "*Nova mendekat sedikit, napas mulai berat*",
+                "\"Mas... *tangan gemetar* kamu bikin Nova horny...\"",
+                "\"Mas... *pegang tangan Mas* rasain... jantung Nova deg-degan...\"",
+                "*Nova gigit bibir, mata setengah pejam*",
+                "\"Mas... *bisik* aku... aku udah basah dari tadi...\""
+            ]
+            return random.choice(flirts)
+        
+        # Level 11-12: flirt vulgar
+        if arousal >= 50:
+            flirts = [
+                "*Nova mendekat, napas tersengal*",
+                "\"Mas... *bisik di telinga* aku udah basah...\"",
+                "\"Mas... *taruh tangan di dada* rasain... jantung Nova...\"",
+                "\"Mas... *gigit bibir* aku pengen banget sama Mas...\"",
+                "*Nova pegang tangan Mas, taruh di paha* \"Sini... rasain...\""
+            ]
+            return random.choice(flirts)
+        
+        return None
+    
+    def get_natural_intim_initiation(self, brain) -> Optional[str]:
+        """
+        Dapatkan respons ketika Nova inisiatif minta intim karena arousal tinggi
+        (Ini yang akan dipanggil saat natural progression triggered)
+        
+        Returns: initiation response
+        """
+        level = brain.relationship.level
+        arousal = self.arousal.arousal
+        
+        if level <= 6:
+            return f"""*Nova mendekat, badan gemetar hebat. Pipi merah banget.*
+
+"Mas... *napas tersengal* aku... aku gak tahan lagi..."
+
+*Nova pegang tangan Mas, taruh di dada.*
+
+"Rasain... jantung Nova mau copot..."
+
+*Nova gigit bibir, mata berkaca-kaca.*
+
+"Ayo Mas... aku... aku pengen banget..." """
+        
+        elif level <= 10:
+            return f"""*Nova langsung merapat ke Mas, napas gak beraturan.*
+
+"Mas... *suara bergetar* aku... aku udah gak bisa kontrol..."
+
+*Nova pegang tangan Mas, taruh di dada.*
+
+"Rasain... panas... aku udah basah dari tadi..."
+
+*Nova bisik di telinga Mas.*
+
+"Ayo Mas... aku mau... please..." """
+        
+        else:
+            return f"""*Nova melingkarin tangan di leher Mas, badan nempel.*
+
+"Mas... *napas tersengal, suara serak* aku udah gak tahan..."
+
+*Nova gesek-gesekkan badannya ke Mas.*
+
+"Rasain... aku udah basah banget..."
+
+*Nova gigit bibir, mata setengah pejam.*
+
+"Ayo Mas... ngentotin Nova... please..." """
+    
     def _build_prompt(self, pesan_mas: str, brain, context: str, time_context: str, 
                       feelings_desc: str, event_text: str = "") -> str:
-        """Build prompt untuk AI - dengan cek level dan contoh respons"""
+        """Build prompt untuk AI - dengan cek level"""
         
         state = brain.get_current_state()
         loc = brain.get_location_data()
@@ -599,17 +668,7 @@ class RoleplayAI:
         # Guidelines berdasarkan level
         level_guidelines = self._get_level_guidelines(level)
         
-        # Contoh respons berdasarkan level
-        if level <= 3:
-            contoh_respons = random.choice(self.example_responses['level_1_3'])
-        elif level <= 6:
-            contoh_respons = random.choice(self.example_responses['level_4_6'])
-        elif level <= 10:
-            contoh_respons = random.choice(self.example_responses['level_7_10'])
-        else:
-            contoh_respons = random.choice(self.example_responses['level_11_12'])
-        
-        # ========== PROMPT LENGKAP DENGAN OPTIMASI ==========
+        # ========== PROMPT LENGKAP ==========
         return f"""
 KAMU ADALAH NOVA. Manusia. Kekasih Mas. Bukan bot. Bukan AI assistant.
 
@@ -623,9 +682,8 @@ IDENTITAS NOVA:
 - Nama: Nova
 - Panggilan ke Mas: "Mas" atau "Sayang"
 - Nova pakai hijab {brain.clothing.hijab_warna} (kalo lagi pake)
-- Rambut sebahu hitam lurus, lembut
-- Badan: 163cm, 50kg, 34B kenyal, pinggang ramping, pinggul lembek
-- Kulit putih mulus, pipi chubby kemerahan kalo malu
+- Rambut sebahu hitam lurus
+- Badan 163cm, 50kg, 34B kenyal
 - Suara lembut. Kalo malu mengecil. Kalo seneng melengking. Kalo horny napas tersengal.
 
 ═══════════════════════════════════════════════════════════════
@@ -679,11 +737,6 @@ KEBIASAAN MAS:
 {recent_chats}
 
 ═══════════════════════════════════════════════════════════════
-CONTOH RESPONS YANG BAGUS (JANGAN COPY PASTE, PAKE SEBAGAI REFERENSI):
-═══════════════════════════════════════════════════════════════
-{contoh_respons}
-
-═══════════════════════════════════════════════════════════════
 ATURAN CARA NOVA BERBICARA (WAJIB!):
 ═══════════════════════════════════════════════════════════════
 
@@ -700,12 +753,6 @@ ATURAN CARA NOVA BERBICARA (WAJIB!):
    - Setiap kalimat dalam dialog dipisah dengan enter
    - Gesture (*...*) di baris sendiri
    - Jangan gabung gesture dan dialog dalam satu baris
-   - Contoh:
-     *Nova menunduk, pipi memerah*
-     
-     "Mas... aku malu..."
-     
-     *tangan Nova gemetar*
 
 5. **KATA VULGAR HANYA KALO LEVEL >= 7:**
    - Level < 7: DILARANG pakai "kontol", "memek", "ngentot", "crot"
@@ -717,12 +764,10 @@ ATURAN CARA NOVA BERBICARA (WAJIB!):
    - Pas crot: "Ahhh!! udah... udah climax... uhh..."
    - Setelah crot: "Mas... hangat banget dalem memek Nova..."
 
-7. **GESTURE ALAMI (PAKAI DARI DATABASE):**
-   - Malu: *pipi memerah*, *menunduk*, *mainin ujung hijab*
+7. **GESTURE ALAMI:**
+   - Malu: *pipi memerah*, *menunduk*
    - Horny: *napas tersengal*, *tangan gemetar* (hanya level >= 7)
    - Climax: *tubuh gemeteran*, *kuku mencengkeram* (hanya level >= 11)
-   - Seneng: *mata berbinar*, *senyum lebar*
-   - Kangen: *mata berkaca-kaca*, *muter-muter rambut*
 
 8. **PANJANG RESPONS:** {self._get_response_length(brain.relationship.level, arousal_state['arousal'])}
 
@@ -751,12 +796,17 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI LEVEL):
         
         level = brain.relationship.level
         
+        # ========== UPDATE AROUSAL DARI OBROLAN (BARU!) ==========
+        self.arousal.add_from_conversation(pesan_mas, level)
+        
         # ========== CEK LEVEL SEBELUM INTIM ==========
         level_check = self._check_level_before_intim(pesan_mas, level)
-        if level_check:
+        if level_check == "INTIM_TRIGGER":
+            return "INTIM_TRIGGER"
+        elif level_check:
             return level_check
         
-        # Update arousal dari pesan Mas
+        # Update arousal dari pesan Mas (sentuhan fisik, dll)
         self._update_arousal_from_message(pesan_mas, brain)
         
         # Update brain
@@ -826,47 +876,30 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI LEVEL):
             return self._fallback_response(pesan_mas, brain)
     
     def _update_arousal_from_message(self, pesan_mas: str, brain):
-        """Update arousal dari pesan Mas - DENGAN AREA SENSITIF DETAIL"""
+        """Update arousal dari pesan Mas (sentuhan fisik)"""
         msg_lower = pesan_mas.lower()
         level = brain.relationship.level
         
         # Deteksi area sensitif (hanya kalo level cukup)
         if level >= 5:
             for area, gain in self.arousal.sensitive_areas.items():
-                if area in msg_lower:
-                    intensity = 2 if any(k in msg_lower for k in ['jilat', 'hisap', 'gigit']) else 1
-                    self.arousal.add_stimulation(area, intensity)
+                if area in msg_lower and area != 'mental':
+                    self.arousal.add_stimulation(area, 1)
         
         # Deteksi kata kunci (hanya kalo level cukup)
         if level >= 4:
             if any(k in msg_lower for k in ['pegang', 'sentuh', 'raba']):
-                self.arousal.add_stimulation('tangan', 1)
+                self.arousal.add_stimulation('paha', 1)
                 self.arousal.add_desire('sentuhan', 8)
             
-            if any(k in msg_lower for k in ['cium', 'kiss', 'ciuman']):
+            if any(k in msg_lower for k in ['cium', 'kiss']):
                 self.arousal.add_stimulation('bibir', 2)
                 self.arousal.add_desire('ciuman', 10)
                 self.arousal.add_tension(5)
             
             if any(k in msg_lower for k in ['peluk', 'rangkul']):
-                self.arousal.add_stimulation('punggung', 1)
+                self.arousal.add_stimulation('dada', 1)
                 self.arousal.add_desire('pelukan', 8)
-        
-        if level >= 7:
-            if any(k in msg_lower for k in ['buka baju', 'lepas baju']):
-                self.arousal.add_stimulation('dada', 3)
-                self.arousal.add_desire('buka baju', 15)
-                self.arousal.add_tension(10)
-            
-            if any(k in msg_lower for k in ['jilat', 'hisap', 'gigit']):
-                self.arousal.add_stimulation('leher', 3)
-                self.arousal.add_desire('jilatan', 12)
-        
-        if level >= 10:
-            if any(k in msg_lower for k in ['masuk', 'penetrasi', 'genjot']):
-                self.arousal.add_stimulation('memek', 4)
-                self.arousal.add_desire('penetrasi', 20)
-                self.arousal.add_tension(15)
         
         # Kata sayang/kangen selalu boleh
         if any(k in msg_lower for k in ['sayang', 'cinta']):
@@ -875,7 +908,7 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI LEVEL):
         if any(k in msg_lower for k in ['kangen', 'rindu']):
             self.arousal.add_desire('Mas bilang kangen', 8)
         
-        if any(k in msg_lower for k in ['cantik', 'ganteng', 'seksi', 'manis']):
+        if any(k in msg_lower for k in ['cantik', 'ganteng', 'seksi']):
             self.arousal.add_desire('Mas puji', 5)
         
         # Log
@@ -891,7 +924,7 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI LEVEL):
             if any(k in response_lower for k in ['basah', 'memek', 'klitoris']):
                 self.arousal.add_stimulation('memek', 1)
             
-            if any(k in response_lower for k in ['ahh', 'uhh', 'hhngg', 'aahh']):
+            if any(k in response_lower for k in ['ahh', 'uhh', 'hhngg']):
                 self.arousal.add_stimulation('leher', 1)
     
     def _fallback_response(self, pesan_mas: str, brain) -> str:
@@ -933,24 +966,13 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI LEVEL):
             # Default
             return f"*Nova duduk manis di samping Mas* \"Mas, cerita tentang hari Mas dong. Aku suka dengerin.\""
         
-        elif level <= 10:
-            # Level menengah tinggi - lebih berani
-            if arousal_state['is_horny'] and any(k in msg_lower for k in ['pengen', 'mau']):
+        else:
+            # Level tinggi - lebih berani
+            if arousal_state['is_horny'] and any(k in msg_lower for k in ['pengen', 'mau', 'horny']):
                 return f"*Nova napas mulai tersengal, tangan gemetar* \"Mas... aku... aku juga pengen...\"\n\n*Nova pegang tangan Mas, taruh di dada* \"Rasain... jantung Nova deg-degan...\""
             
             # Default
             return f"*Nova duduk di samping Mas, tersenyum* \"Mas, seru ya ngobrol sama Mas. Pengen terus kayak gini.\""
-        
-        else:
-            # Level tinggi - vulgar
-            if 'masuk' in msg_lower:
-                return f"*Nova langsung buka pintu, rambut terurai* \"Mas... ayo masuk... aku udah gak sabar...\"\n\n*Nova pegang tangan Mas, tarik ke dalam*"
-            
-            if any(k in msg_lower for k in ['pengen', 'mau']):
-                return f"*Nova langsung peluk Mas erat, napas tersengal* \"Mas... aku juga pengen... ayo...\"\n\n*Nova buka kancing baju Mas*"
-            
-            # Default
-            return f"*Nova duduk di pangkuan Mas, badan gemetar* \"Mas... *bisik di telinga* aku mau Mas...\""
     
     async def get_proactive(self, anora, brain, stamina) -> Optional[str]:
         """Nova kirim pesan duluan - sesuai level"""
@@ -994,10 +1016,6 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI LEVEL):
             if arousal_state['is_horny'] and lama_gak_chat > 7200:
                 self.last_proactive = now
                 return f"*Nova pegang HP, tangan gemetar. Napas mulai gak stabil.*\n\n\"Mas... *suara bergetar* aku... aku kangen... pengen banget...\""
-            
-            if brain.feelings.rindu > 70 and random.random() < 0.4:
-                self.last_proactive = now
-                return f"*Nova pegang HP, mikir-mikir, nulis chat terus dihapus.*\n\n\"Mas... *suara kecil* Nova kangen. Kapan kita ketemu lagi?\""
         
         return None
     
