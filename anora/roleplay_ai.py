@@ -93,6 +93,7 @@ class ArousalSystem:
         self.update()
         gain = self.sensitive_areas.get(area, 10) * intensity
         self.arousal = min(100, self.arousal + gain)
+        print(f"DEBUG: add_stimulation - area={area}, gain={gain}, arousal now={self.arousal}")
         logger.debug(f"🔥 Stimulation on {area}: +{gain} arousal (now {self.arousal}%)")
         return self.arousal
     
@@ -124,7 +125,8 @@ class ArousalSystem:
                 total_gain = int(total_gain * 0.9)
             # Level 7+: naik 100%
     
-            self.add_stimulation('mental', total_gain // 10)
+            intensity = max(1, total_gain // 10)
+            self.add_stimulation('mental', intensity))
             self.add_desire(f'Mas flirt: {pesan_mas[:30]}', total_gain)
     
             # Log biar keliatan
