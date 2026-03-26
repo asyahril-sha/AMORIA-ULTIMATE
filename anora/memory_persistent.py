@@ -4,6 +4,7 @@ ANORA Persistent Memory - Simpan semua ingatan Nova ke database
 Gak ilang kalo restart. Short-term memory sliding window.
 Long-term memory permanen.
 DENGAN COMPLETE STATE - Semua aspek disimpan ke database.
+DENGAN ROLE TABLES - Semua role (IPAR, Teman Kantor, Pelakor, Istri Orang) juga disimpan.
 """
 
 import time
@@ -31,6 +32,7 @@ class PersistentMemory:
     - State: lokasi, pakaian, perasaan terakhir
     - Conversation: semua percakapan
     - COMPLETE STATE: semua aspek Mas, Nova, dan bersama
+    - ROLE TABLES: semua state dan memory untuk role (IPAR, Teman Kantor, dll)
     """
     
     def __init__(self, db_path: Path = Path("data/anora_memory.db")):
@@ -150,11 +152,48 @@ class PersistentMemory:
             )
         ''')
         
+        # ========== TABEL ROLE (BARU!) ==========
+        await self._conn.execute('''
+            CREATE TABLE IF NOT EXISTS role_states (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                role_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                level INTEGER DEFAULT 1,
+                phase TEXT DEFAULT 'acquaintance',
+                clothing TEXT,
+                position TEXT,
+                location TEXT,
+                activity TEXT,
+                arousal REAL DEFAULT 0,
+                desire REAL DEFAULT 0,
+                tension REAL DEFAULT 0,
+                stamina_current REAL DEFAULT 100,
+                stamina_climax_today INTEGER DEFAULT 0,
+                intimacy_active INTEGER DEFAULT 0,
+                intimacy_climax_count INTEGER DEFAULT 0,
+                updated_at REAL NOT NULL
+            )
+        ''')
+        
+        # ========== TABEL ROLE MEMORY (BARU!) ==========
+        await self._conn.execute('''
+            CREATE TABLE IF NOT EXISTS role_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                role_type TEXT NOT NULL,
+                timestamp REAL NOT NULL,
+                role_msg TEXT,
+                mas_msg TEXT
+            )
+        ''')
+        
         # ========== INDEXES ==========
         await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_timeline_time ON timeline(timestamp)')
         await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_short_term_time ON short_term_memory(timestamp)')
         await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_long_term_tipe ON long_term_memory(tipe)')
         await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_conversation_time ON conversation(timestamp)')
+        await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_role_states_type ON role_states(role_type)')
+        await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_role_memory_type ON role_memory(role_type)')
+        await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_role_memory_time ON role_memory(timestamp)')
         
         await self._conn.commit()
         
@@ -232,7 +271,7 @@ class PersistentMemory:
         await self._conn.commit()
     
     # =========================================================================
-    # COMPLETE STATE METHODS (BARU!)
+    # COMPLETE STATE METHODS
     # =========================================================================
     
     async def save_complete_state(self, brain):
@@ -272,7 +311,7 @@ class PersistentMemory:
             return False
     
     # =========================================================================
-    # STATE METHODS (PERTAHANKAN + TAMBAH COMPLETE STATE)
+    # STATE METHODS
     # =========================================================================
     
     async def get_state(self, key: str) -> Optional[str]:
@@ -297,7 +336,241 @@ class PersistentMemory:
         return {row[0]: row[1] for row in rows}
     
     # =========================================================================
-    # LOAD KE BRAIN (PERTAHANKAN + TAMBAH COMPLETE STATE)
+    # ROLE STATE METHODS (BARU!)
+    # =========================================================================
+    
+    async def init_role_tables(self) -> bool:
+        """Inisialisasi tabel untuk role (dipanggil dari roles.py)"""
+        try:
+            # Tabel role_states sudah dibuat di init(), tapi pastikan ada
+            await self._conn.execute('''
+                CREATE TABLE IF NOT EXISTS role_states (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    role_type TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    level INTEGER DEFAULT 1,
+                    phase TEXT DEFAULT 'acquaintance',
+                    clothing TEXT,
+                    position TEXT,
+                    location TEXT,
+                    activity TEXT,
+                    arousal REAL DEFAULT 0,
+                    desire REAL DEFAULT 0,
+                    tension REAL DEFAULT 0,
+                    stamina_current REAL DEFAULT 100,
+                    stamina_climax_today INTEGER DEFAULT 0,
+                    intimacy_active INTEGER DEFAULT 0,
+                    intimacy_climax_count INTEGER DEFAULT 0,
+                    updated_at REAL NOT NULL
+                )
+            ''')
+            
+            # Tabel role_memory
+            await self._conn.execute('''
+                CREATE TABLE IF NOT EXISTS role_memory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    role_type TEXT NOT NULL,
+                    timestamp REAL NOT NULL,
+                    role_msg TEXT,
+                    mas_msg TEXT
+                )
+            ''')
+            
+            # Index untuk performa
+            await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_role_states_type ON role_states(role_type)')
+            await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_role_memory_type ON role_memory(role_type)')
+            await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_role_memory_time ON role_memory(timestamp)')
+            
+            await self._conn.commit()
+            logger.info("📀 Role tables initialized")
+            return True
+        except Exception as e:
+            logger.error(f"Error creating role tables: {e}")
+            return False
+    
+    async def save_role_state(self, role_type: str, role_instance) -> bool:
+        """Simpan state role ke database"""
+        try:
+            # Konversi state ke JSON
+            clothing_data = {
+                'hijab': role_instance.clothing.hijab,
+                'hijab_warna': role_instance.clothing.hijab_warna,
+                'top': role_instance.clothing.top,
+                'bra': role_instance.clothing.bra,
+                'cd': role_instance.clothing.cd
+            }
+            
+            position_data = {
+                'state': role_instance.position.state,
+                'detail': role_instance.position.detail
+            }
+            
+            location_data = {
+                'room': role_instance.location.room,
+                'detail': role_instance.location.detail
+            }
+            
+            activity_data = {
+                'main': role_instance.activity.main,
+                'detail': role_instance.activity.detail
+            }
+            
+            await self._conn.execute('''
+                INSERT OR REPLACE INTO role_states (
+                    role_type, name, level, phase,
+                    clothing, position, location, activity,
+                    arousal, desire, tension,
+                    stamina_current, stamina_climax_today,
+                    intimacy_active, intimacy_climax_count,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                role_type,
+                role_instance.name,
+                role_instance.level,
+                role_instance.phase.value,
+                json.dumps(clothing_data),
+                json.dumps(position_data),
+                json.dumps(location_data),
+                json.dumps(activity_data),
+                role_instance.arousal.arousal,
+                role_instance.arousal.desire,
+                role_instance.arousal.tension,
+                role_instance.stamina.current,
+                role_instance.stamina.climax_today,
+                1 if role_instance.intimacy.is_active else 0,
+                role_instance.intimacy.climax_count,
+                time.time()
+            ))
+            await self._conn.commit()
+            logger.debug(f"💾 Role state saved: {role_type}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving role state: {e}")
+            return False
+    
+    async def load_role_state(self, role_type: str, role_instance) -> bool:
+        """Load state role dari database"""
+        try:
+            cursor = await self._conn.execute(
+                "SELECT * FROM role_states WHERE role_type = ? ORDER BY updated_at DESC LIMIT 1",
+                (role_type,)
+            )
+            row = await cursor.fetchone()
+            
+            if row:
+                # Load level
+                role_instance.level = row[3] if len(row) > 3 else 1
+                
+                # Load phase
+                from .role_base import RolePhase
+                try:
+                    if len(row) > 4 and row[4]:
+                        role_instance.phase = RolePhase(row[4])
+                except:
+                    pass
+                
+                # Load clothing
+                if len(row) > 5 and row[5]:
+                    clothing_data = json.loads(row[5])
+                    role_instance.clothing.hijab = clothing_data.get('hijab', True)
+                    role_instance.clothing.hijab_warna = clothing_data.get('hijab_warna', 'pink muda')
+                    role_instance.clothing.top = clothing_data.get('top', 'daster rumah motif bunga')
+                    role_instance.clothing.bra = clothing_data.get('bra', True)
+                    role_instance.clothing.cd = clothing_data.get('cd', True)
+                
+                # Load position
+                if len(row) > 6 and row[6]:
+                    position_data = json.loads(row[6])
+                    role_instance.position.state = position_data.get('state')
+                    role_instance.position.detail = position_data.get('detail')
+                
+                # Load location
+                if len(row) > 7 and row[7]:
+                    location_data = json.loads(row[7])
+                    role_instance.location.room = location_data.get('room', 'kamar')
+                    role_instance.location.detail = location_data.get('detail')
+                
+                # Load activity
+                if len(row) > 8 and row[8]:
+                    activity_data = json.loads(row[8])
+                    role_instance.activity.main = activity_data.get('main', 'santai')
+                    role_instance.activity.detail = activity_data.get('detail')
+                
+                # Load arousal
+                role_instance.arousal.arousal = row[9] if len(row) > 9 else 0
+                role_instance.arousal.desire = row[10] if len(row) > 10 else 0
+                role_instance.arousal.tension = row[11] if len(row) > 11 else 0
+                
+                # Load stamina
+                role_instance.stamina.current = row[12] if len(row) > 12 else 100
+                role_instance.stamina.climax_today = row[13] if len(row) > 13 else 0
+                
+                # Load intimacy
+                role_instance.intimacy.is_active = bool(row[14]) if len(row) > 14 else False
+                role_instance.intimacy.climax_count = row[15] if len(row) > 15 else 0
+                
+                logger.info(f"📀 Role state loaded: {role_type} (Level {role_instance.level})")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error loading role state: {e}")
+            return False
+    
+    async def save_role_memory(self, role_type: str, role_instance) -> bool:
+        """Simpan memory percakapan role"""
+        try:
+            # Hapus memory lama untuk role ini
+            await self._conn.execute(
+                "DELETE FROM role_memory WHERE role_type = ?",
+                (role_type,)
+            )
+            
+            # Simpan memory baru (last 30)
+            for conv in role_instance.conversations[-30:]:
+                await self._conn.execute('''
+                    INSERT INTO role_memory (role_type, timestamp, role_msg, mas_msg)
+                    VALUES (?, ?, ?, ?)
+                ''', (
+                    role_type,
+                    conv['timestamp'],
+                    conv['role'][:1000] if conv['role'] else "",
+                    conv['mas'][:1000] if conv['mas'] else ""
+                ))
+            
+            await self._conn.commit()
+            logger.debug(f"💾 Role memory saved: {role_type}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving role memory: {e}")
+            return False
+    
+    async def load_role_memory(self, role_type: str, role_instance) -> bool:
+        """Load memory percakapan role"""
+        try:
+            cursor = await self._conn.execute(
+                "SELECT * FROM role_memory WHERE role_type = ? ORDER BY timestamp ASC",
+                (role_type,)
+            )
+            rows = await cursor.fetchall()
+            
+            role_instance.conversations = []
+            for row in rows:
+                if len(row) >= 5:
+                    role_instance.conversations.append({
+                        'timestamp': row[2],
+                        'role': row[3] or "",
+                        'mas': row[4] or ""
+                    })
+            
+            logger.info(f"📀 Role memory loaded: {role_type} ({len(role_instance.conversations)} conversations)")
+            return True
+        except Exception as e:
+            logger.error(f"Error loading role memory: {e}")
+            return False
+    
+    # =========================================================================
+    # LOAD KE BRAIN
     # =========================================================================
     
     async def _load_to_brain(self):
@@ -463,7 +736,7 @@ class PersistentMemory:
         logger.info(f"📀 Loaded to brain: {len(brain.timeline)} timeline, {len(brain.short_term)} short-term")
     
     # =========================================================================
-    # SAVE FUNCTIONS (PERTAHANKAN + TAMBAH COMPLETE STATE)
+    # SAVE FUNCTIONS
     # =========================================================================
     
     async def save_timeline_event(self, event: TimelineEvent):
@@ -582,7 +855,7 @@ class PersistentMemory:
         await self._conn.commit()
     
     # =========================================================================
-    # GET FUNCTIONS (PERTAHANKAN)
+    # GET FUNCTIONS
     # =========================================================================
     
     async def get_recent_conversations(self, limit: int = 20) -> List[Dict]:
@@ -623,7 +896,7 @@ class PersistentMemory:
     
     async def get_stats(self) -> Dict:
         stats = {}
-        tables = ['timeline', 'short_term_memory', 'long_term_memory', 'conversation', 'location_visits', 'complete_state']
+        tables = ['timeline', 'short_term_memory', 'long_term_memory', 'conversation', 'location_visits', 'complete_state', 'role_states', 'role_memory']
         for table in tables:
             cursor = await self._conn.execute(f"SELECT COUNT(*) FROM {table}")
             count = (await cursor.fetchone())[0]
@@ -633,7 +906,7 @@ class PersistentMemory:
         return stats
     
     # =========================================================================
-    # CLEANUP & UTILITY (PERTAHANKAN)
+    # CLEANUP & UTILITY
     # =========================================================================
     
     async def cleanup_old_short_term(self, keep: int = 50):
