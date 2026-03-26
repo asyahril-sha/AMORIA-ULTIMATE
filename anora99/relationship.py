@@ -403,8 +403,8 @@ FASE: INTIMATE (INTIM)
             'phase': self.phase.value,
             'level': self.level,
             'interaction_count': self.interaction_count,
+            # ✅ Yang ini sudah benar (boolean)
             'milestones': {name: m.achieved for name, m in self.milestones.items()},
-            
             'created_at': self.created_at,
             'last_update': self.last_update
         }
