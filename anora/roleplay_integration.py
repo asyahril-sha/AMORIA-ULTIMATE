@@ -571,7 +571,7 @@ Kirim **/batal** buat balik ke mode chat.
         # ========== DETEKSI PERINTAH INTIM ==========
         
         # Mulai intim
-        if any(k in pesan_lower for k in ['intim', 'ngentot', 'main', 'sex', 'ml', 'mau']):
+        if any(k in pesan_lower for k in ['ngentot', 'sex', 'ml']):
             # Cek level
             if self.brain.relationship.level < 7:
                 return f"💕 Level masih {self.brain.relationship.level}/12\n\nNova masih malu-malu. Belum waktunya buat intim. Ajarin Nova dulu ya, Mas. 💜"
