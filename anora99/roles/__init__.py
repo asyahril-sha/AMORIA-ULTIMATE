@@ -1,6 +1,7 @@
 """
 ANORA 9.9 Roles Package
-Semua role (IPAR, Teman Kantor, Pelakor, Istri Orang) dengan engine yang sama seperti Nova.
+Semua role (IPAR, Teman Kantor, Pelakor, Istri Orang) dengan akses penuh sesuai level,
+sama seperti Nova.
 """
 
 from .base_role import BaseRole99
