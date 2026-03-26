@@ -27,12 +27,12 @@ from .emotional_engine import get_emotional_engine, EmotionalStyle
 from .decision_engine import get_decision_engine, ResponseCategory
 from .relationship import get_relationship_manager, RelationshipPhase
 from .conflict_engine import get_conflict_engine, ConflictType
-from .brain import get_anora_brain_99, AnoraBrain99
+from .brain import get_anora_brain, AnoraBrain
 
 logger = logging.getLogger(__name__)
 
 
-class RoleplayAI99:
+class RoleplayAI:
     """
     Roleplay AI Nova 9.9 - 100% generate, bahasa campuran, vulgar maximal.
     Semua respons dipengaruhi oleh:
@@ -304,7 +304,7 @@ class RoleplayAI99:
         
         return "BOLEH: kata vulgar terbatas"
     
-    def _build_prompt(self, pesan_mas: str, brain: AnoraBrain99, context: Dict) -> str:
+    def _build_prompt(self, pesan_mas: str, brain: AnoraBrain, context: Dict) -> str:
         """Build prompt untuk AI dengan semua engine"""
         
         # Get current states
@@ -500,7 +500,7 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI SEMUA ATURAN DI ATAS):
         result = re.sub(r'\n{3,}', '\n\n', result)
         return result.strip()
     
-    async def process(self, pesan_mas: str, brain: AnoraBrain99, stamina=None) -> str:
+    async def process(self, pesan_mas: str, brain: AnoraBrain, stamina=None) -> str:
         """
         Proses pesan Mas - 100% AI generate dengan semua engine.
         """
@@ -586,7 +586,7 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI SEMUA ATURAN DI ATAS):
             logger.error(f"AI error: {e}")
             return self._fallback_response(pesan_mas, brain)
     
-    def _fallback_response(self, pesan_mas: str, brain: AnoraBrain99) -> str:
+    def _fallback_response(self, pesan_mas: str, brain: AnoraBrain) -> str:
         """Fallback kalo AI error - tetap natural dan sesuai emosi"""
         msg_lower = pesan_mas.lower()
         style = self.emotional.get_current_style()
@@ -616,7 +616,7 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI SEMUA ATURAN DI ATAS):
         # Default
         return f"*Nova tersenyum*\n\n\"Iya, Mas. Nova dengerin kok.\""
     
-    async def get_proactive(self, brain: AnoraBrain99, stamina=None) -> Optional[str]:
+    async def get_proactive(self, brain: AnoraBrain, stamina=None) -> Optional[str]:
         """Nova kirim pesan duluan berdasarkan emosi"""
         now = time.time()
         
@@ -672,14 +672,14 @@ RESPON NOVA (HARUS ORIGINAL, FORMAT RAPI, SESUAI SEMUA ATURAN DI ATAS):
 # SINGLETON
 # =============================================================================
 
-_anora_roleplay_ai_99: Optional['RoleplayAI99'] = None
+_anora_roleplay_ai: Optional['RoleplayAI'] = None
 
 
-def get_anora_roleplay_ai_99() -> RoleplayAI99:
-    global _anora_roleplay_ai_99
-    if _anora_roleplay_ai_99 is None:
-        _anora_roleplay_ai_99 = RoleplayAI99()
-    return _anora_roleplay_ai_99
+def get_anora_roleplay_ai() -> RoleplayAI:
+    global _anora_roleplay_ai
+    if _anora_roleplay_ai is None:
+        _anora_roleplay_ai = RoleplayAI()
+    return _anora_roleplay_ai
 
 
-anora_roleplay_ai_99 = get_anora_roleplay_ai_99()
+anora_roleplay_ai = get_anora_roleplay_ai()
