@@ -4,10 +4,10 @@ Pelakor yang tau Mas punya Nova.
 Akses konten berdasarkan level (sama seperti Nova).
 """
 
-from .base_role import BaseRole99
+from .base_role import BaseRole
 
 
-class PelakorRole(BaseRole99):
+class PelakorRole(BaseRole):
     """
     Vina - Pelakor.
     Punya rasa tantangan dan iri ke Nova, tetapi tidak membatasi aksi.
