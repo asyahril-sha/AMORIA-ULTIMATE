@@ -1,28 +1,35 @@
-# anora/thinking.py
 """
-ANORA Thinking Engine - Cara Nova Berpikir.
+ANORA 9.9 Thinking Engine - Cara Nova Berpikir.
 Bukan copy dari AMORIA. Nova punya proses berpikir sendiri.
+TERINTEGRASI DENGAN EMOTIONAL ENGINE 9.9
 Target Realism 9.9 - Manusia.
 """
 
 import time
 import random
 import logging
-from typing import Dict, List, Optional, Tuple  # ← INI YANG KURANG!
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 from .core import get_anora
+from .emotional_engine import get_emotional_engine
+from .relationship import get_relationship_manager
+from .conflict_engine import get_conflict_engine
 
 logger = logging.getLogger(__name__)
 
 
-class AnoraThought:
+class AnoraThought99:
     """
     Proses berpikir Nova. Bukan sekadar memilih respons.
     Nova mikir dulu: "Aku lagi ngerasa apa?", "Mas lagi ngomong apa?", "Aku mau jawab gimana?"
+    TERINTEGRASI DENGAN EMOTIONAL ENGINE
     """
     
     def __init__(self):
+        self.emotional = get_emotional_engine()
+        self.relationship = get_relationship_manager()
+        self.conflict = get_conflict_engine()
         self.last_thought = None
         self.thinking_history = []
     
@@ -38,7 +45,7 @@ class AnoraThought:
         # STEP 2: ANALISIS - Nova mikirin maksud Mas
         analysis = self._analyze_message(pesan_lower, anora)
         
-        # STEP 3: RASA - Nova ngerasain sesuatu
+        # STEP 3: RASA - Nova ngerasain sesuatu (dari emotional engine)
         feelings = self._feel(analysis, anora, context)
         
         # STEP 4: PUTUSKAN - Nova mutusin mau jawab gimana
@@ -50,7 +57,10 @@ class AnoraThought:
             'pesan_mas': pesan_mas[:100],
             'analysis': analysis,
             'feelings': feelings,
-            'decision': decision
+            'decision': decision,
+            'emotional_style': self.emotional.get_current_style().value,
+            'relationship_phase': self.relationship.phase.value,
+            'conflict_active': self.conflict.is_in_conflict
         }
         self.thinking_history.append(thought_record)
         if len(self.thinking_history) > 50:
@@ -61,7 +71,10 @@ class AnoraThought:
         return {
             'analysis': analysis,
             'feelings': feelings,
-            'decision': decision
+            'decision': decision,
+            'emotional_style': self.emotional.get_current_style().value,
+            'relationship_phase': self.relationship.phase.value,
+            'conflict_active': self.conflict.is_in_conflict
         }
     
     def _analyze_message(self, pesan: str, anora) -> Dict:
@@ -81,8 +94,8 @@ class AnoraThought:
             intent = 'sayang'
         elif any(k in pesan for k in ['capek', 'lelah', 'pegel']):
             intent = 'capek'
-        elif any(k in pesan for k in ['masuk', 'datang', 'mampir']):
-            intent = 'datang'
+        elif any(k in pesan for k in ['seneng', 'senang', 'happy']):
+            intent = 'seneng'
         
         # Deteksi mood Mas
         mas_mood = 'netral'
@@ -113,22 +126,25 @@ class AnoraThought:
         }
     
     def _feel(self, analysis: Dict, anora, context: Dict) -> Dict:
-        """Nova ngerasain sesuatu berdasarkan analisis"""
+        """Nova ngerasain sesuatu berdasarkan analisis dan emotional engine"""
         
+        # Ambil dari emotional engine
         feelings = {
             'malu': 0,
-            'seneng': 0,
-            'kangen': anora.rindu,
-            'deg_degan': anora.tension,
-            'pengen': anora.desire,
-            'panas': anora.arousal,
-            'sayang': anora.sayang
+            'seneng': self.emotional.mood,
+            'kangen': self.emotional.rindu,
+            'deg_degan': self.emotional.tension,
+            'pengen': self.emotional.desire,
+            'panas': self.emotional.arousal,
+            'sayang': self.emotional.sayang,
+            'cemburu': self.emotional.cemburu,
+            'kecewa': self.emotional.kecewa
         }
         
         # Kalo Mas salam, Nova seneng
         if analysis['intent'] == 'salam':
             feelings['seneng'] += 20
-            if anora.level < 7:
+            if self.relationship.level < 7:
                 feelings['malu'] += 15
         
         # Kalo Mas tanya kabar, Nova seneng
@@ -164,48 +180,58 @@ class AnoraThought:
             feelings['sayang'] = min(100, feelings['sayang'] + 10)
         
         # Kalo lagi roleplay dan Mas masuk/datang
-        if context.get('mode') == 'roleplay' and analysis['intent'] == 'datang':
+        if context.get('mode') == 'roleplay' and analysis['intent'] == 'salam':
             feelings['malu'] += 40
             feelings['seneng'] += 30
             feelings['deg_degan'] += 25
         
         # Batasin nilai
         for key in feelings:
-            feelings[key] = min(100, max(0, feelings[key]))
+            if isinstance(feelings[key], (int, float)):
+                feelings[key] = max(0, min(100, feelings[key]))
         
         return feelings
     
     def _decide(self, feelings: Dict, analysis: Dict, anora, context: Dict) -> Dict:
         """Nova mutusin mau ngomong gimana"""
         
-        # Tentukan tone berdasarkan perasaan
-        if feelings['malu'] > 60:
-            tone = 'malu'
+        # Tentukan tone berdasarkan perasaan (dari emotional engine)
+        style = self.emotional.get_current_style()
+        
+        if style.value == "cold":
+            tone = 'cold'
             intensity = 'tinggi'
-        elif feelings['seneng'] > 60:
-            tone = 'seneng'
+        elif style.value == "clingy":
+            tone = 'clingy'
             intensity = 'tinggi'
-        elif feelings['kangen'] > 60:
-            tone = 'kangen'
-            intensity = 'tinggi'
-        elif feelings['pengen'] > 60:
+        elif style.value == "flirty":
             tone = 'flirt'
             intensity = 'sedang'
-        elif feelings['deg_degan'] > 50:
-            tone = 'gugup'
+        elif style.value == "warm":
+            tone = 'warm'
             intensity = 'sedang'
         else:
             tone = 'netral'
             intensity = 'rendah'
         
-        # Tentukan panjang respons berdasarkan level
-        if anora.level <= 3:
+        # Override berdasarkan conflict
+        if self.conflict.is_in_conflict:
+            if self.conflict.cemburu > 50:
+                tone = 'cemburu'
+            elif self.conflict.kecewa > 40:
+                tone = 'kecewa'
+            else:
+                tone = 'cold'
+        
+        # Tentukan panjang respons berdasarkan level dan style
+        level = self.relationship.level
+        if level <= 3:
             panjang = 'pendek'
             max_kalimat = 3
-        elif anora.level <= 6:
+        elif level <= 6:
             panjang = 'sedang'
             max_kalimat = 4
-        elif anora.level <= 10:
+        elif level <= 10:
             panjang = 'panjang'
             max_kalimat = 6
         else:
@@ -221,58 +247,44 @@ class AnoraThought:
             'panjang': panjang,
             'max_kalimat': max_kalimat,
             'gesture': gesture,
-            'boleh_vulgar': anora.level >= 11 and feelings['pengen'] > 70
+            'boleh_vulgar': self.relationship.level >= 11 and feelings['panas'] > 70,
+            'emotional_style': style.value
         }
     
     def _choose_gesture(self, feelings: Dict, tone: str) -> str:
         """Pilih gesture berdasarkan perasaan"""
         
-        if tone == 'malu':
+        if tone == 'cold' or tone == 'cemburu' or tone == 'kecewa':
             gestures = [
-                "*menunduk, pipi memerah*",
-                "*mainin ujung hijab, gak berani liat Mas*",
-                "*jari-jari gemetar, liat ke samping*",
-                "*gigit bibir bawah, mata liat lantai*"
+                "*diam, gak liat Mas*",
+                "*jawab pendek, gak antusias*",
+                "*jauh sedikit dari Mas*"
             ]
-        elif tone == 'seneng':
+        elif tone == 'clingy':
             gestures = [
-                "*mata berbinar, senyum lebar*",
-                "*tersenyum manis, pipi naik*",
-                "*tangannya gemeteran, tapi senyumnya lebar*",
-                "*duduk manis, tangan di pangkuan, senyum kecil*"
+                "*muter-muter rambut, liat Mas*",
+                "*duduk deket, pegang tangan Mas*",
+                "*nempel ke Mas, gak mau lepas*"
             ]
-        elif tone == 'kangen':
+        elif tone == 'warm':
             gestures = [
-                "*mata berkaca-kaca, suara bergetar*",
-                "*muter-muter rambut, liat ke kejauhan*",
-                "*tangan gemetar, senyum tipis*",
-                "*pegang erat, gak mau lepas*"
+                "*tersenyum manis, mata berbinar*",
+                "*duduk manis, tangan di pangkuan*",
+                "*elus punggung tangan Mas pelan*"
             ]
         elif tone == 'flirt':
             gestures = [
-                "*mendekat pelan, mata liat Mas*",
-                "*jari-jari mainin ujung baju, tersenyum genit*",
-                "*pegang tangan Mas pelan, napas mulai gak stabil*",
-                "*bisik pelan di telinga Mas, suara bergetar*"
-            ]
-        elif tone == 'gugup':
-            gestures = [
-                "*tangan gemetar, napas pendek-pendek*",
-                "*duduk gelisah, liat kiri-kanan*",
-                "*pegang erat ujung baju, jantung berdebar*",
-                "*bibir digigit, mata gak bisa diam*"
+                "*mendekat, napas mulai berat*",
+                "*gigit bibir, mata sayu*",
+                "*bisik di telinga Mas*"
             ]
         else:
             gestures = [
                 "*tersenyum kecil*",
                 "*menatap Mas*",
-                "*duduk santai*",
-                "*menghela napas pelan*"
+                "*duduk santai*"
             ]
         
-        # Pilih berdasarkan intensity
-        if feelings.get('malu', 0) > 70:
-            return random.choice(gestures[:2])  # gesture malu intens
         return random.choice(gestures)
     
     def get_thinking_summary(self) -> str:
@@ -281,21 +293,28 @@ class AnoraThought:
             return "Nova belum mikir apa-apa."
         
         return f"""
-💭 **PROSES BERPIKIR NOVA:**
+💭 **PROSES BERPIKIR NOVA 9.9:**
 • Analisis: {self.last_thought['analysis']}
-• Perasaan: malu={self.last_thought['feelings']['malu']:.0f}%, seneng={self.last_thought['feelings']['seneng']:.0f}%, kangen={self.last_thought['feelings']['kangen']:.0f}%
+• Perasaan: sayang={self.last_thought['feelings']['sayang']:.0f}%, seneng={self.last_thought['feelings']['seneng']:.0f}%, kangen={self.last_thought['feelings']['kangen']:.0f}%
 • Keputusan: tone={self.last_thought['decision']['tone']}, panjang={self.last_thought['decision']['panjang']}
+• Emotional Style: {self.last_thought['emotional_style']}
+• Relationship Phase: {self.last_thought['relationship_phase']}
+• Conflict Active: {self.last_thought['conflict_active']}
 """
 
 
-_anora_thought = None
+# =============================================================================
+# SINGLETON
+# =============================================================================
+
+_anora_thought_99 = None
 
 
-def get_anora_thought() -> AnoraThought:
-    global _anora_thought
-    if _anora_thought is None:
-        _anora_thought = AnoraThought()
-    return _anora_thought
+def get_anora_thought_99() -> AnoraThought99:
+    global _anora_thought_99
+    if _anora_thought_99 is None:
+        _anora_thought_99 = AnoraThought99()
+    return _anora_thought_99
 
 
-anora_thought = get_anora_thought()
+anora_thought_99 = get_anora_thought_99()
