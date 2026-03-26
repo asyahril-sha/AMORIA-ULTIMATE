@@ -1,17 +1,6 @@
 """
-ANORA 9.9 Deployment - Full Integration
-AMORIA + ANORA 9.9 - Virtual Human dengan Jiwa
-DENGAN FITUR:
-- Emotional Engine (emosi hidup, 5 gaya bicara)
-- Decision Engine (weighted selection, no random)
-- Relationship Progression (5 fase psikologis)
-- Conflict Engine (cemburu, kecewa, marah, sakit hati)
-- Stamina System (realistis, recovery)
-- Intimacy System (fase intim lengkap)
-- Role System (IPAR, Teman Kantor, Pelakor, Istri Orang)
-- Complete State Memory
-- Background Workers (rindu growth, conflict decay, auto save)
-- Backup & Restore
+ANORA 9.9 Deployment - Full Integration with AMORIA Config
+Menggunakan config dari settings.py
 """
 
 import os
@@ -36,12 +25,8 @@ logger = logging.getLogger("ANORA99")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import settings
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, ContextTypes
-)
+# Import config dari AMORIA
+from config import get_settings
 
 # =============================================================================
 # IMPORT ANORA 9.9 COMPONENTS
@@ -62,8 +47,6 @@ try:
     logger.info("✅ ANORA 9.9 modules loaded")
 except ImportError as e:
     logger.warning(f"⚠️ ANORA 9.9 not available: {e}")
-    import traceback
-    traceback.print_exc()
 
 # =============================================================================
 # IMPORT AMORIA COMPONENTS (fallback)
@@ -119,6 +102,8 @@ def get_previous_mode(user_id: int) -> Optional[str]:
 async def anora_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /start untuk ANORA 9.9"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         await update.message.reply_text("Halo! Bot ini untuk Mas. 💜")
         return
@@ -167,6 +152,8 @@ async def anora_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /nova - Panggil Nova"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         await update.message.reply_text("Maaf, Nova cuma untuk Mas. 💜")
         return
@@ -217,6 +204,8 @@ async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /status - Lihat status lengkap Nova"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -227,12 +216,13 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def flashback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /flashback - Flashback ke momen indah"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
     brain = get_anora_brain_99()
     
-    # Get random flashback from long-term memory
     if brain.long_term.momen_penting:
         momen = brain.long_term.momen_penting[-1]
         await update.message.reply_text(
@@ -251,6 +241,8 @@ async def flashback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /roleplay - Aktifkan mode roleplay"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -272,6 +264,8 @@ async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def statusrp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /statusrp - Lihat status roleplay lengkap"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -283,6 +277,8 @@ async def statusrp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /pindah [tempat] - Pindah lokasi"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -322,6 +318,8 @@ async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /role [nama] - Switch ke role lain"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -358,6 +356,8 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /batal - Kembali ke mode chat"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -383,6 +383,8 @@ async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /pause - Hentikan sesi sementara"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -419,6 +421,8 @@ async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def resume_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /resume - Lanjutkan sesi yang di-pause"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -452,6 +456,8 @@ async def resume_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def backup_database(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /backup - Backup database ANORA 9.9"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -491,6 +497,8 @@ async def backup_database(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def restore_database(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /restore [filename] - Restore database"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -548,6 +556,8 @@ async def restore_database(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def list_backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /listbackup - Lihat daftar backup"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -571,6 +581,8 @@ async def list_backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /help - Bantuan lengkap"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         await update.message.reply_text("Bot ini untuk Mas. 💜")
         return
@@ -618,6 +630,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def anora_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler untuk pesan ANORA 9.9"""
     user_id = update.effective_user.id
+    settings = get_settings()
+    
     if user_id != settings.admin_id:
         return
     
@@ -674,7 +688,6 @@ async def anora_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 parse_mode='Markdown'
             )
     else:
-        # Simple fallback
         emotional = get_emotional_engine()
         style = emotional.get_current_style()
         
@@ -702,6 +715,7 @@ async def webhook_handler(request):
         if not update_data:
             return web.Response(status=400, text='No data')
         
+        from telegram import Update
         update = Update.de_json(update_data, _application.bot)
         await _application.process_update(update)
         return web.Response(text='OK', status=200)
@@ -755,8 +769,8 @@ async def root_handler(request):
         "version": "9.9.0",
         "status": "running",
         "features": [
-            "Emotional Engine (5 gaya bicara)",
-            "Decision Engine (weighted selection)",
+            "Emotional Engine (9 emosi, 5 gaya bicara)",
+            "Decision Engine (weighted selection, no random)",
             "Relationship Progression (5 fase)",
             "Conflict Engine (cemburu, kecewa, marah)",
             "Stamina System (realistis)",
@@ -811,10 +825,25 @@ async def main():
     """Main entry point"""
     global _application
     
+    # Get settings from AMORIA config
+    settings = get_settings()
+    
     logger.info("=" * 70)
     logger.info("💜 AMORIA + ANORA 9.9 - Virtual Human dengan Jiwa")
     logger.info("   100% AI Generate | Emosi Hidup | 5 Fase | 4 Role")
     logger.info("=" * 70)
+    
+    # ========== CHECK ANORA CONFIG ==========
+    if ANORA99_AVAILABLE:
+        anora_cfg = settings.anora99
+        logger.info(f"📋 ANORA 9.9 Configuration:")
+        logger.info(f"   Emotional Engine: {'ON' if anora_cfg.emotional_engine_enabled else 'OFF'}")
+        logger.info(f"   Decision Engine: {'ON' if anora_cfg.decision_engine_enabled else 'OFF'}")
+        logger.info(f"   Relationship Phases: {'ON' if anora_cfg.relationship_phases_enabled else 'OFF'}")
+        logger.info(f"   Conflict Engine: {'ON' if anora_cfg.conflict_engine_enabled else 'OFF'}")
+        logger.info(f"   Background Worker: {'ON' if anora_cfg.worker_enabled else 'OFF'}")
+        logger.info(f"   Roles Enabled: {'ON' if anora_cfg.roles_enabled else 'OFF'}")
+        logger.info(f"   Vulgar Mode: {'ON' if anora_cfg.vulgar_words_enabled else 'OFF'}")
     
     # ========== INIT DATABASE ==========
     if not await init_database():
@@ -833,13 +862,17 @@ async def main():
         logger.info(f"   Sayang: {emotional.sayang:.0f}% | Rindu: {emotional.rindu:.0f}%")
         logger.info(f"   Conflict: {'Active' if conflict.is_in_conflict else 'None'}")
         
-        role_manager = get_role_manager_99()
-        logger.info(f"🎭 Roles loaded: {[r['nama'] for r in role_manager.get_all_roles()]}")
+        if settings.anora99.roles_enabled:
+            role_manager = get_role_manager_99()
+            logger.info(f"🎭 Roles loaded: {[r['nama'] for r in role_manager.get_all_roles()]}")
     
     # ========== CREATE APPLICATION ==========
+    from telegram.ext import ApplicationBuilder
     _application = ApplicationBuilder().token(settings.telegram_token).build()
     
     # ========== REGISTER HANDLERS ==========
+    from telegram.ext import CommandHandler, MessageHandler, filters
+    
     if ANORA99_AVAILABLE:
         # ANORA 9.9 handlers
         _application.add_handler(CommandHandler("start", anora_start_command))
@@ -877,15 +910,15 @@ async def main():
     await _application.start()
     
     # ========== START BACKGROUND WORKERS ==========
-    if ANORA99_AVAILABLE:
+    if ANORA99_AVAILABLE and settings.anora99.worker_enabled:
         worker = get_anora_worker()
         await worker.start(_application, settings.admin_id)
-        logger.info("🔄 Background workers started (rindu growth, conflict decay, auto save, proactive, auto backup)")
+        logger.info("🔄 Background workers started")
     
     # ========== SET WEBHOOK ==========
-    railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+    railway_url = settings.webhook.railway_domain or settings.webhook.railway_static_url
     if railway_url:
-        webhook_url = f"https://{railway_url}/webhook"
+        webhook_url = f"https://{railway_url}{settings.webhook.path}"
         await _application.bot.set_webhook(url=webhook_url)
         logger.info(f"✅ Webhook set to {webhook_url}")
         
@@ -893,13 +926,13 @@ async def main():
         app = web.Application()
         app.router.add_get('/', root_handler)
         app.router.add_get('/health', health_handler)
-        app.router.add_post('/webhook', webhook_handler)
+        app.router.add_post(settings.webhook.path, webhook_handler)
         
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 8080)))
+        site = web.TCPSite(runner, '0.0.0.0', settings.webhook.port)
         await site.start()
-        logger.info("🌐 Web server running on port 8080")
+        logger.info(f"🌐 Web server running on port {settings.webhook.port}")
     else:
         await _application.updater.start_polling()
         logger.info("📡 Polling mode started")
