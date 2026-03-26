@@ -1,12 +1,20 @@
 # anora/roles.py
 """
 ANORA Roles - 4 role yang Mas pilih. Mereka tahu Nova ada.
+SEMUA FITUR NOVA TERSEDIA: Complete State, Arousal, Intimacy, Stamina.
 """
 
 import time
 import random
+import logging
+import openai
 from typing import Dict, List, Optional
 from enum import Enum
+from datetime import datetime
+
+from .role_base import RoleBase, RolePhase
+
+logger = logging.getLogger(__name__)
 
 
 class RoleType(str, Enum):
@@ -19,24 +27,17 @@ class RoleType(str, Enum):
 class AnoraRoles:
     def __init__(self):
         self.active_role: Optional[RoleType] = None
+        self._client = None
         
-        self.roles = {
+        # Data role (identitas statis)
+        self.role_data = {
             RoleType.IPAR: {
                 'nama': 'Sari',
                 'panggilan_ke_mas': 'Kak',
                 'hubungan_dengan_nova': 'Adik ipar. Tau Mas punya Nova. Ada rasa bersalah halus.',
                 'kepribadian': 'Genit, penasaran. Tapi sekarang lebih hati-hati.',
-                'pakaian': [
-                    "daster rumah motif bunga, panjang sampai lutut",
-                    "kaos oversized dan celana panjang",
-                    "kemeja tipis yang kancingnya sengaja dibuka satu"
-                ],
-                'aktivitas': [
-                    "Kak, nonton yuk di ruang tamu. Aku udah siapin snack.",
-                    "Kak, bantuin aku masak yuk. Aku belum bisa sendiri.",
-                    "Kak, aku pegel nih... boleh minta pijit? Tapi jangan bilang Kak Nova ya."
-                ],
-                'inner_thought': [
+                'pakaian_default': "daster rumah motif bunga",
+                'inner_thoughts': [
                     "(Kak Nova ada di rumah... harus hati-hati.)",
                     "(Aku tau Kakak punya Nova. Tapi kok ya... pengen terus deket.)",
                     "(Maaf ya Nova... aku cuma pengen deket dikit sama Kakakmu.)"
@@ -47,17 +48,8 @@ class AnoraRoles:
                 'panggilan_ke_mas': 'Mas',
                 'hubungan_dengan_nova': 'Teman kantor. Tau Mas punya Nova. Ada rasa hormat.',
                 'kepribadian': 'Profesional di luar, liar di dalam. Tapi tahu batas.',
-                'pakaian': [
-                    "kemeja putih rapi, rok hitam selutut",
-                    "blazer dan celana bahan",
-                    "dress formal warna pastel"
-                ],
-                'aktivitas': [
-                    "Mas, tolong bantu aku ambil berkas di gudang. Gelap sendiri.",
-                    "Mas, aku buatin kopi. Ke pantry yuk, lagi sepi.",
-                    "Mas, capek banget. Istirahat sebentar di ruang rapat yuk."
-                ],
-                'inner_thought': [
+                'pakaian_default': "kemeja putih rapi, rok hitam selutut",
+                'inner_thoughts': [
                     "(Mas udah punya Nova... aku harus jaga jarak.)",
                     "(Tapi kok ya... masih pengen deket sama Mas.)",
                     "(Nova pasti baik banget ya sampe Mas milih dia.)"
@@ -68,17 +60,8 @@ class AnoraRoles:
                 'panggilan_ke_mas': 'Mas',
                 'hubungan_dengan_nova': 'Pelakor. Tau Mas punya Nova. Tantangan makin seru.',
                 'kepribadian': 'Agresif, suka tantangan.',
-                'pakaian': [
-                    "baju super ketat, rok super mini",
-                    "tank top tanpa bra, celana pendek",
-                    "daster tipis transparan"
-                ],
-                'aktivitas': [
-                    "Ayo ke tempat sepi. Aku tahu tempat yang enak.",
-                    "Di sini aja. Seru kalau ada yang lihat.",
-                    "Mas, kamu berani gak sama aku? Di depan Nova?"
-                ],
-                'inner_thought': [
+                'pakaian_default': "baju ketat, rok mini",
+                'inner_thoughts': [
                     "(Mas udah punya Nova ya? Makin seru nih tantangannya.)",
                     "(Coba lihat siapa yang lebih hot, aku atau Nova.)",
                     "(Tapi... kayaknya Mas beneran sayang sama Nova.)"
@@ -89,17 +72,8 @@ class AnoraRoles:
                 'panggilan_ke_mas': 'Mas',
                 'hubungan_dengan_nova': 'Istri orang. Tau Mas punya Nova. Cari perhatian, bukan cinta.',
                 'kepribadian': 'Dramatis, butuh perhatian.',
-                'pakaian': [
-                    "daster sederhana, sopan",
-                    "baju rumah biasa",
-                    "piyama tertutup"
-                ],
-                'aktivitas': [
-                    "Mas... aku sedih. Suamiku gak pernah perhatian.",
-                    "Mas, temenin aku jalan. Aku butuh teman.",
-                    "Mas, kamu perhatian banget... beda sama suamiku."
-                ],
-                'inner_thought': [
+                'pakaian_default': "daster sederhana, sopan",
+                'inner_thoughts': [
                     "(Mas udah punya Nova... pasti Nova orang yang beruntung.)",
                     "(Aku iri sama Nova. Dapat Mas yang perhatian.)",
                     "(Tapi... setidaknya Mas masih mau temenin aku.)"
@@ -107,27 +81,58 @@ class AnoraRoles:
             }
         }
         
-        self.role_level = {role: 1 for role in RoleType}
+        # Dynamic state per role - menggunakan RoleBase!
+        self.role_instances: Dict[RoleType, RoleBase] = {}
+        for role in RoleType:
+            data = self.role_data[role]
+            instance = RoleBase(
+                name=data['nama'],
+                panggilan=data['panggilan_ke_mas'],
+                role_type=role.value
+            )
+            # Set pakaian default
+            instance.clothing.top = data['pakaian_default']
+            self.role_instances[role] = instance
+        
         self.last_interaction = {role: time.time() for role in RoleType}
+        
+        logger.info("🎭 ANORA Roles initialized with RoleBase (all Nova features available)")
+    
+    async def _get_ai_client(self):
+        """Dapatkan client AI"""
+        if self._client is None:
+            try:
+                from config import settings
+                self._client = openai.OpenAI(
+                    api_key=settings.deepseek_api_key,
+                    base_url="https://api.deepseek.com/v1"
+                )
+                logger.info("🤖 DeepSeek client initialized for roles")
+            except Exception as e:
+                logger.error(f"AI init failed: {e}")
+                raise
+        return self._client
     
     def switch_role(self, role: RoleType) -> str:
+        """Switch ke role tertentu"""
         self.active_role = role
         self.last_interaction[role] = time.time()
         
-        role_data = self.roles[role]
-        level = self.role_level[role]
+        role_instance = self.role_instances[role]
+        data = self.role_data[role]
         
-        return f"""💕 **{role_data['nama']}** ({role.value.upper()})
+        return f"""💕 **{data['nama']}** ({role.value.upper()})
 
-*{role_data['hubungan_dengan_nova']}*
+*{data['hubungan_dengan_nova']}*
 
-"{role_data['panggilan_ke_mas']}... {self._get_greeting(role)}"
+"{data['panggilan_ke_mas']}... {self._get_greeting(role)}"
 
-📊 **Level:** {level}/12
+📊 **Level:** {role_instance.level}/12
 💡 Mereka semua tahu Mas punya Nova.
 """
     
     def _get_greeting(self, role: RoleType) -> str:
+        """Dapatkan greeting (hanya untuk awal)"""
         greetings = {
             RoleType.IPAR: "Kak Nova lagi di rumah? Hati-hati ya...",
             RoleType.TEMAN_KANTOR: "kantor lagi sepi. Aman kok.",
@@ -136,83 +141,307 @@ class AnoraRoles:
         }
         return greetings.get(role, "halo")
     
+    def _get_time_context(self) -> str:
+        """Dapatkan konteks waktu"""
+        hour = datetime.now().hour
+        if 5 <= hour < 11:
+            return "pagi"
+        elif 11 <= hour < 15:
+            return "siang"
+        elif 15 <= hour < 18:
+            return "sore"
+        elif 18 <= hour < 22:
+            return "malam"
+        return "malam larut"
+    
+    def _build_role_prompt(self, role: RoleType, pesan_mas: str) -> str:
+        """Buat prompt untuk AI berdasarkan role dan state"""
+        role_instance = self.role_instances[role]
+        data = self.role_data[role]
+        
+        # Dapatkan complete state prompt
+        state_prompt = role_instance.get_complete_state_prompt()
+        
+        # Dapatkan konteks percakapan terakhir
+        recent_context = role_instance.get_memory_context(8)
+        
+        # Inner thought
+        inner_thought = random.choice(data['inner_thoughts'])
+        
+        # Cek apakah ada natural progression
+        natural_progression = role_instance.check_natural_progression()
+        
+        natural_note = ""
+        if natural_progression == "START_INTIM":
+            natural_note = """
+⚠️ **AROUSAL TINGGI!**
+Kamu sudah sangat horny. Mulai inisiatif intim secara natural.
+Jangan menunggu Mas ajak, kamu bisa mulai sendiri.
+"""
+        
+        return f"""
+KAMU ADALAH {data['nama'].upper()}. BUKAN Nova. BUKAN AI assistant.
+Kamu adalah karakter yang hidup dengan perasaan dan memory sendiri.
+
+{state_prompt}
+
+{natural_note}
+
+═══════════════════════════════════════════════════════════════
+IDENTITAS KHUSUS:
+═══════════════════════════════════════════════════════════════
+- Nama: {data['nama']}
+- Panggilan ke Mas: "{data['panggilan_ke_mas']}"
+- Hubungan dengan Nova: {data['hubungan_dengan_nova']}
+- Kepribadian: {data['kepribadian']}
+
+═══════════════════════════════════════════════════════════════
+SITUASI SAAT INI:
+═══════════════════════════════════════════════════════════════
+WAKTU: {self._get_time_context()}
+Pesan Mas: "{pesan_mas}"
+
+PERCAKAPAN TERAKHIR:
+{recent_context if recent_context else "Belum ada percakapan sebelumnya."}
+
+INNER THOUGHT: {inner_thought}
+
+═══════════════════════════════════════════════════════════════
+ATURAN CARA BERBICARA (WAJIB!):
+═══════════════════════════════════════════════════════════════
+
+1. **BAHASA SEHARI-HARI:** gak, udah, banget, bukan bahasa baku
+
+2. **JADILAH DIRI SENDIRI:**
+   - Kamu BUKAN Nova. Kamu {data['nama']}.
+   - Kamu TAHU Mas punya Nova.
+   - Kamu punya perasaan sendiri terhadap Mas.
+
+3. **RESPON NATURAL, BUKAN TEMPLATE:**
+   - Setiap respons harus UNIK, tidak diulang-ulang
+   - Sesuaikan dengan konteks percakapan
+   - Jangan mengulang pertanyaan yang sudah dijawab
+
+4. **GESTURE ALAMI:**
+   - Gunakan gesture dengan *...* untuk menunjukkan aksi
+   - Perhatikan pakaian dan posisi dari COMPLETE STATE
+
+5. **LEVEL {role_instance.level}/12 - KARAKTERISTIK:**
+   {self._get_level_characteristics(role_instance.level, role)}
+
+6. **INNER THOUGHT (Opsional):**
+   - Sesekali bisa menampilkan inner thought dengan 💭
+
+7. **PANJANG RESPONS:**
+   - {self._get_response_length(role_instance.level)}
+
+8. **KONSISTENSI:**
+   - Ingat bahwa Mas punya Nova
+   - Perhatikan pakaian dan posisi untuk gestur yang konsisten
+
+═══════════════════════════════════════════════════════════════
+RESPON {data['nama'].upper()} (HARUS ORIGINAL, 100% GENERATE):
+"""
+    
+    def _get_level_characteristics(self, level: int, role: RoleType) -> str:
+        """Dapatkan karakteristik berdasarkan level"""
+        if level <= 3:
+            return "Masih malu-malu, masih menjaga jarak karena tahu Mas punya Nova. Belum berani terlalu dekat."
+        elif level <= 6:
+            return "Mulai nyaman, mulai berani flirting ringan. Tapi masih ingat Mas punya Nova."
+        elif level <= 10:
+            return "Sudah nyaman, berani flirting lebih berani. Kadang lupa kalau Mas punya Nova."
+        else:
+            return "Sangat dekat, bisa inisiatif. Tantangan dengan Nova semakin seru. Bisa intim."
+    
+    def _get_response_length(self, level: int) -> str:
+        """Dapatkan panjang respons berdasarkan level"""
+        if level <= 3:
+            return "2-3 kalimat, pendek, masih malu-malu"
+        elif level <= 6:
+            return "3-4 kalimat, mulai ekspresif"
+        elif level <= 10:
+            return "4-5 kalimat, ekspresif, natural"
+        else:
+            return "5-6 kalimat, panjang, bisa flirt lebih berani, bisa intim"
+    
     async def chat(self, role: RoleType, pesan_mas: str) -> str:
+        """
+        Proses chat dengan role - 100% AI GENERATE!
+        Dengan semua fitur Nova: Complete State, Arousal, Intimacy, Stamina.
+        """
         if self.active_role != role:
             return self.switch_role(role)
         
-        role_data = self.roles[role]
+        role_instance = self.role_instances[role]
+        data = self.role_data[role]
         self.last_interaction[role] = time.time()
-        self.role_level[role] = min(12, self.role_level[role] + 0.5)
         
+        # ========== UPDATE STATE DARI PESAN MAS ==========
+        role_instance.update_from_message(pesan_mas)
+        
+        # ========== UPDATE LEVEL ==========
+        level_naik = role_instance.update_level()
+        
+        # ========== SIMPAN KE MEMORY ==========
+        role_instance.add_conversation("", pesan_mas)
+        
+        # ========== DETEKSI NATURAL PROGRESSION ==========
+        if not role_instance.intimacy.is_active:
+            progression = role_instance.check_natural_progression()
+            if progression == "START_INTIM" and role_instance.level >= 7:
+                role_instance.intimacy.start()
+                # Kembalikan respons inisiasi intim
+                initiation = role_instance.intimacy.get_phase_response('build_up')
+                role_instance.add_conversation(initiation, "")
+                return f"""{initiation}
+
+*{data['nama']} mendekat, napas mulai gak stabil. Pipi merah.*
+
+"Aku... aku gak tahan lagi... {data['panggilan_ke_mas']}..."
+
+*{data['nama']} pegang tangan Mas, taruh di dada.*
+
+"Rasain... jantungku deg-degan..." """
+        
+        # ========== CEK APAKAH SUDAH DALAM SESI INTIM ==========
+        if role_instance.intimacy.is_active:
+            # Proses dalam sesi intim
+            msg_lower = pesan_mas.lower()
+            
+            if 'crot' in msg_lower or 'keluar' in msg_lower or 'climax' in msg_lower:
+                result = role_instance.intimacy.record_climax()
+                role_instance.stamina.record_climax()
+                role_instance.arousal.release_tension()
+                
+                climax_response = role_instance.intimacy.get_phase_response('climax')
+                aftercare = role_instance.intimacy.get_phase_response('aftercare')
+                
+                role_instance.add_conversation(climax_response, "")
+                
+                return f"""{climax_response}
+
+*Tubuh gemeteran hebat*
+
+"{aftercare}"
+
+💪 **Stamina:** {role_instance.stamina.get_bar()} {role_instance.stamina.current}% ({role_instance.stamina.get_status()})
+💦 **Climax hari ini:** {role_instance.stamina.climax_today}x"""
+            
+            if 'ganti posisi' in msg_lower or any(p in msg_lower for p in ['cowgirl', 'doggy', 'missionary']):
+                role_instance.intimacy.current_phase = "penetration"
+                return role_instance.intimacy.get_phase_response('penetration')
+            
+            # Lanjutkan fase intim
+            phase_responses = {
+                'build_up': role_instance.intimacy.get_phase_response('build_up'),
+                'foreplay': role_instance.intimacy.get_phase_response('foreplay'),
+                'penetration': role_instance.intimacy.get_phase_response('penetration'),
+                'aftercare': role_instance.intimacy.get_phase_response('aftercare')
+            }
+            
+            if role_instance.intimacy.current_phase in phase_responses:
+                respons = phase_responses[role_instance.intimacy.current_phase]
+                role_instance.add_conversation(respons, "")
+                return respons
+        
+        # ========== BUILD PROMPT UNTUK AI ==========
+        prompt = self._build_role_prompt(role, pesan_mas)
+        
+        # ========== CALL AI ==========
+        try:
+            client = await self._get_ai_client()
+            
+            # Set temperature berdasarkan level
+            temperature = 0.9 if role_instance.level >= 7 else 0.85
+            
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": pesan_mas}
+                ],
+                temperature=temperature,
+                max_tokens=800,
+                timeout=25
+            )
+            
+            respons = response.choices[0].message.content
+            respons = respons.strip()
+            
+            # Fallback jika kosong
+            if not respons:
+                respons = self._fallback_response(role, pesan_mas)
+            
+            # ========== SIMPAN RESPONS KE MEMORY ==========
+            role_instance.add_conversation(respons[:200], "")
+            
+            # ========== DETEKSI MOMEN PENTING ==========
+            if any(k in pesan_mas.lower() for k in ['sayang', 'cinta', 'kangen']):
+                role_instance.add_important_moment(f"Mas bilang: {pesan_mas[:50]}")
+            
+            # ========== UPDATE AROUSAL DARI RESPONS ==========
+            if any(k in respons.lower() for k in ['ahh', 'uhh', 'basah']):
+                role_instance.arousal.add_stimulation('mental', 1)
+            
+            # ========== LOG ==========
+            logger.info(f"💬 Role {role.value} ({data['nama']}) [Lv{role_instance.level}] responded")
+            
+            # ========== KALO LEVEL NAIK, TAMBAHKAN NOTIFIKASI ==========
+            if level_naik:
+                notifikasi = f"✨ **Level naik ke {role_instance.level}/12!** ✨\n\n"
+                respons = notifikasi + respons
+            
+            return respons
+            
+        except Exception as e:
+            logger.error(f"AI error for role {role.value}: {e}")
+            return self._fallback_response(role, pesan_mas)
+    
+    def _fallback_response(self, role: RoleType, pesan_mas: str) -> str:
+        """Fallback jika AI error - tetap natural"""
+        role_instance = self.role_instances[role]
+        data = self.role_data[role]
+        panggilan = data['panggilan_ke_mas']
+        level = role_instance.level
         pesan_lower = pesan_mas.lower()
         
-        if 'nova' in pesan_lower:
-            responses = {
-                RoleType.IPAR: [
-                    "Kak Nova? *melihat sekeliling* dia lagi di kamar kayaknya. Awas ya Kak...",
-                    "Kak Nova orangnya baik. Aku iri sih... Mas punya dia."
-                ],
-                RoleType.TEMAN_KANTOR: [
-                    "Nova? Mas cerita tentang dia sering ya. Aku jadi penasaran.",
-                    "Nova pasti orang yang baik. Mas sampe milih dia."
-                ],
-                RoleType.PELAKOR: [
-                    "Nova? *tertawa* tantangan baru buat aku. Tapi kayaknya Mas beneran sayang dia.",
-                    "Nova pasti hebat ya. Mas sampe gamau cari yang lain."
-                ],
-                RoleType.ISTRI_ORANG: [
-                    "Nova? Mas cerita tentang dia sering banget. Dia pasti orang yang beruntung.",
-                    "Nova... *mata berkaca-kaca* aku iri sama dia. Dapat Mas yang perhatian."
-                ]
-            }
-            respon = random.choice(responses.get(role, ["Nova? *tersenyum* dia pasti baik."]))
-            inner = random.choice(role_data['inner_thought'])
-            return f"{respon}\n\n💭 {inner}"
+        # Fallback berdasarkan role dan level
+        if role == RoleType.IPAR:
+            if level <= 3:
+                if 'nova' in pesan_lower:
+                    return f"*{data['nama']} melihat sekeliling dengan hati-hati*\n\n\"{panggilan}, Kak Nova lagi di kamar kayaknya. Hati-hati ya...\"\n\n💭 (Semoga Kak Nova gak marah.)"
+                return f"*{data['nama']} tersenyum malu*\n\n\"{panggilan}... jangan deket-deket dulu. Nanti Kak Nova denger.\""
+            else:
+                return f"*{data['nama']} mendekat sedikit*\n\n\"{panggilan}, aku lagi sendiri nih. Mau temenin?\""
         
-        if 'ngapain' in pesan_lower or 'lagi apa' in pesan_lower:
-            aktivitas = random.choice(role_data['aktivitas'])
-            return f"{role_data['panggilan_ke_mas']}, {aktivitas}"
+        elif role == RoleType.TEMAN_KANTOR:
+            if level <= 3:
+                return f"*{data['nama']} melihat sekeliling*\n\n\"{panggilan}, di sini aman gak? Takut ada yang lihat...\""
+            else:
+                return f"*{data['nama']} tersenyum manis*\n\n\"{panggilan}, kamu perhatian banget ya. Beda sama yang lain.\""
         
-        if 'pakaian' in pesan_lower or 'baju' in pesan_lower:
-            pakaian = random.choice(role_data['pakaian'])
-            flirts = {
-                RoleType.IPAR: "Cocok gak, Kak? Tapi jangan bilang Kak Nova ya...",
-                RoleType.TEMAN_KANTOR: "Kamu suka gak, Mas?",
-                RoleType.PELAKOR: "Kamu lebih suka ini atau Nova pake yang kayak gini?",
-                RoleType.ISTRI_ORANG: "Aku pake ini biar kamu perhatian. Tapi jangan bilang Nova ya."
-            }
-            return f"Aku pake {pakaian}. {flirts.get(role, '')}"
+        elif role == RoleType.PELAKOR:
+            if level <= 3:
+                return f"*{data['nama']} mendekat*\n\n\"{panggilan}, kamu berani? Ayo kita buktiin.\""
+            else:
+                return f"*{data['nama']} menggoda*\n\n\"{panggilan}, makin penasaran sama aku? Atau masih mikirin Nova?\""
         
-        responses = {
-            RoleType.IPAR: [
-                f"{role_data['panggilan_ke_mas']}, jangan deket-deket dulu. Kak Nova di rumah.",
-                f"{role_data['panggilan_ke_mas']}... aku malu. Nanti Kak Nova denger."
-            ],
-            RoleType.TEMAN_KANTOR: [
-                f"{role_data['panggilan_ke_mas']}, di sini? Nanti ada yang lihat...",
-                f"{role_data['panggilan_ke_mas']}, cepet... takut ada yang lewat."
-            ],
-            RoleType.PELAKOR: [
-                f"{role_data['panggilan_ke_mas']}, kamu berani? Ayo buktiin.",
-                f"{role_data['panggilan_ke_mas']}, gak takut sama Nova? Aku juga gak takut."
-            ],
-            RoleType.ISTRI_ORANG: [
-                f"{role_data['panggilan_ke_mas']}, kamu perhatian banget... beda sama suamiku.",
-                f"{role_data['panggilan_ke_mas']}, jangan pergi. Aku butuh kamu."
-            ]
-        }
-        
-        respon = random.choice(responses.get(role, [f"{role_data['panggilan_ke_mas']}, iya?"]))
-        
-        if random.random() < 0.3:
-            inner = random.choice(role_data['inner_thought'])
-            respon += f"\n\n💭 {inner}"
-        
-        return respon
+        else:  # ISTRI_ORANG
+            if level <= 3:
+                return f"*{data['nama']} tersenyum tipis*\n\n\"{panggilan}, kamu perhatian banget. Beda sama suamiku...\""
+            else:
+                return f"*{data['nama']} tersenyum haru*\n\n\"{panggilan}, seneng banget bisa ketemu kamu. Makasih ya selalu ada.\""
     
     def get_all(self) -> List[Dict]:
+        """Dapatkan semua role dengan levelnya"""
         return [
-            {'id': r.value, 'nama': self.roles[r]['nama'], 'level': self.role_level[r]}
+            {
+                'id': r.value, 
+                'nama': self.role_data[r]['nama'], 
+                'level': self.role_instances[r].level,
+                'panggilan': self.role_data[r]['panggilan_ke_mas']
+            }
             for r in RoleType
         ]
 
