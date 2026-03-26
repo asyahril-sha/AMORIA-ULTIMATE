@@ -4,6 +4,7 @@ Mengelola semua role (IPAR, Teman Kantor, Pelakor, Istri Orang)
 """
 
 import time
+import json
 import logging
 from typing import Dict, List, Optional
 
@@ -53,8 +54,8 @@ class RoleManager99:
 
 "{role.get_greeting()}"
 
-📊 **Level:** {role.relationship.level}/12
-💡 Mereka semua tahu Mas punya Nova.
+📊 **Level:** {role.relationship.level}/12 | **Fase:** {role.relationship.phase.value.upper()}
+💡 Mereka semua tahu Mas punya Nova, tapi sekarang bisa dekat sesuai level.
 
 Kirim **/batal** kalo mau balik ke Nova.
 """
@@ -72,9 +73,8 @@ Kirim **/batal** kalo mau balik ke Nova.
         # Save conversation
         role.add_conversation(pesan_mas, "")
         
-        # Build prompt
-        prompt_builder = get_prompt_builder_99()
-        prompt = prompt_builder.build_role_prompt(role, pesan_mas)
+        # Build prompt dengan unlock yang sama seperti Nova
+        prompt = self._build_role_prompt(role, pesan_mas)
         
         # Call AI
         try:
@@ -129,6 +129,37 @@ Kirim **/batal** kalo mau balik ke Nova.
                 raise
         return self._ai_client
     
+    def _build_role_prompt(self, role, pesan_mas: str) -> str:
+        """Build prompt untuk role dengan unlock berdasarkan level"""
+        prompt = f"""
+KAMU ADALAH {role.name}. BUKAN Nova. BUKAN AI assistant.
+Kamu adalah karakter yang hidup dengan perasaan dan memory sendiri.
+
+{role.get_context_for_prompt()}
+
+HUBUNGAN DENGAN NOVA: {role.hubungan_dengan_nova}
+
+{role.relationship.get_phase_description(role.relationship.phase)}
+
+UNLOCK KONTEN (BERDASARKAN LEVEL):
+{role.relationship.get_unlock_summary()}
+
+PESAN MAS: "{pesan_mas}"
+
+PERCAKAPAN TERAKHIR:
+{chr(10).join([f"Mas: {c['mas']}" for c in role.conversations[-5:]])}
+
+ATURAN:
+1. Kamu TAHU Mas punya Nova
+2. Kamu punya perasaan sendiri (rasa bersalah, profesionalisme, dll) tapi ini hanya flavor, bukan pembatas aksi
+3. Gunakan unlock di atas untuk menentukan apa yang boleh kamu lakukan (flirt, vulgar, intim, dll) sesuai level
+4. Bahasa sehari-hari, natural, campuran Indo-Inggris-gaul
+5. Respons UNIK, jangan template
+
+RESPON {role.name}:
+"""
+        return prompt
+    
     def _fallback_response(self, role, pesan_mas: str) -> str:
         """Fallback response"""
         msg_lower = pesan_mas.lower()
@@ -145,6 +176,7 @@ Kirim **/batal** kalo mau balik ke Nova.
                 'id': role_id,
                 'nama': role.name,
                 'level': role.relationship.level,
+                'phase': role.relationship.phase.value,
                 'panggilan': role.panggilan,
                 'hubungan': role.hubungan_dengan_nova
             }
