@@ -398,13 +398,11 @@ FASE: INTIMATE (INTIM)
 """
     
     def to_dict(self) -> Dict:
-        """Serialize ke dict untuk database"""
         return {
             'phase': self.phase.value,
             'level': self.level,
             'interaction_count': self.interaction_count,
-            # ✅ Yang ini sudah benar (boolean)
-            'milestones': {name: m.achieved for name, m in self.milestones.items()},
+            'milestones': {name: m.achieved for name, m in self.milestones.items()},  # ← SUDAH BENAR
             'created_at': self.created_at,
             'last_update': self.last_update
         }
