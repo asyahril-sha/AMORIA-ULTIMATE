@@ -42,29 +42,29 @@ __all__ = [
     'anora_worker',
     
     # Memory & Brain
-    'get_anora_brain_99',
-    'anora_brain_99',
+    'get_anora_brain',
+    'anora_brain',
     'get_anora_persistent',
     'anora_persistent',
     
     # Intimacy & Stamina
-    'get_anora_intimacy_99',
-    'anora_intimacy_99',
-    'StaminaSystem99',
-    'IntimacySession99',
+    'get_anora_intimacy',
+    'anora_intimacy',
+    'StaminaSystem',
+    'IntimacySession',
     
     # AI & Roleplay
-    'get_anora_roleplay_ai_99',
-    'anora_roleplay_ai_99',
-    'get_anora_roleplay_99',
-    'anora_roleplay_99',
-    'get_prompt_builder_99',
-    'prompt_builder_99',
+    'get_anora_roleplay_ai',
+    'anora_roleplay_ai',
+    'get_anora_roleplay',
+    'anora_roleplay',
+    'get_prompt_builder',
+    'prompt_builder',
     
     # Roles
-    'get_role_manager_99',
-    'role_manager_99',
-    'BaseRole99',
+    'get_role_manager',
+    'role_manager',
+    'BaseRole',
     'IparRole',
     'TemanKantorRole',
     'PelakorRole',
@@ -179,9 +179,9 @@ except ImportError as e:
 
 try:
     from .brain import (
-        get_anora_brain_99,
-        anora_brain_99,
-        AnoraBrain99,
+        get_anora_brain,
+        anora_brain,
+        AnoraBrain,
         Clothing,
         Feelings,
         Relationship,
@@ -191,9 +191,9 @@ try:
     logger.debug("✅ ANORA 9.9 Brain loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Brain: {e}")
-    get_anora_brain_99 = None
-    anora_brain_99 = None
-    AnoraBrain99 = None
+    get_anora_brain = None
+    anora_brain = None
+    AnoraBrain = None
     Clothing = None
     Feelings = None
     Relationship = None
@@ -223,21 +223,21 @@ except ImportError as e:
 
 try:
     from .intimacy import (
-        get_anora_intimacy_99,
-        anora_intimacy_99,
-        AnoraIntimacy99
+        get_anora_intimacy,
+        anora_intimacy,
+        AnoraIntimacy
     )
     logger.debug("✅ ANORA 9.9 Intimacy loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Intimacy: {e}")
-    get_anora_intimacy_99 = None
-    anora_intimacy_99 = None
-    AnoraIntimacy99 = None
+    get_anora_intimacy = None
+    anora_intimacy = None
+    AnoraIntimacy = None
 
 try:
     from .intimacy_core import (
-        StaminaSystem99,
-        ArousalSystem99,
+        StaminaSystem,
+        ArousalSystem,
         PositionDatabase,
         ClimaxLocationDatabase,
         MoansDatabase,
@@ -246,8 +246,8 @@ try:
     logger.debug("✅ ANORA 9.9 Intimacy Core loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Intimacy Core: {e}")
-    StaminaSystem99 = None
-    ArousalSystem99 = None
+    StaminaSystem = None
+    ArousalSystem = None
     PositionDatabase = None
     ClimaxLocationDatabase = None
     MoansDatabase = None
@@ -255,14 +255,14 @@ except ImportError as e:
 
 try:
     from .intimacy_flow import (
-        IntimacySession99,
-        IntimacyFlow99
+        IntimacySession,
+        IntimacyFlow
     )
     logger.debug("✅ ANORA 9.9 Intimacy Flow loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Intimacy Flow: {e}")
-    IntimacySession99 = None
-    IntimacyFlow99 = None
+    IntimacySession = None
+    IntimacyFlow = None
 
 # =============================================================================
 # TRY IMPORT - ROLEPLAY AI
@@ -270,16 +270,16 @@ except ImportError as e:
 
 try:
     from .roleplay_ai import (
-        get_anora_roleplay_ai_99,
-        anora_roleplay_ai_99,
-        RoleplayAI99
+        get_anora_roleplay_ai,
+        anora_roleplay_ai,
+        RoleplayAI
     )
     logger.debug("✅ ANORA 9.9 Roleplay AI loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Roleplay AI: {e}")
-    get_anora_roleplay_ai_99 = None
-    anora_roleplay_ai_99 = None
-    RoleplayAI99 = None
+    get_anora_roleplay_ai = None
+    anora_roleplay_ai = None
+    RoleplayAI = None
 
 # =============================================================================
 # TRY IMPORT - ROLEPLAY INTEGRATION
@@ -287,18 +287,18 @@ except ImportError as e:
 
 try:
     from .roleplay_integration import (
-        get_anora_roleplay_99,
-        anora_roleplay_99,
-        AnoraRoleplay99,
-        StaminaSystem99 as StaminaFromIntegration,
-        IntimacySession99 as IntimacyFromIntegration
+        get_anora_roleplay,
+        anora_roleplay,
+        AnoraRoleplay,
+        StaminaSystem as StaminaFromIntegration,
+        IntimacySession as IntimacyFromIntegration
     )
     logger.debug("✅ ANORA 9.9 Roleplay Integration loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Roleplay Integration: {e}")
-    get_anora_roleplay_99 = None
-    anora_roleplay_99 = None
-    AnoraRoleplay99 = None
+    get_anora_roleplay = None
+    anora_roleplay = None
+    AnoraRoleplay = None
     StaminaFromIntegration = None
     IntimacyFromIntegration = None
 
@@ -308,16 +308,16 @@ except ImportError as e:
 
 try:
     from .prompt import (
-        get_prompt_builder_99,
-        prompt_builder_99,
-        PromptBuilder99
+        get_prompt_builder,
+        prompt_builder,
+        PromptBuilder
     )
     logger.debug("✅ ANORA 9.9 Prompt Builder loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Prompt Builder: {e}")
-    get_prompt_builder_99 = None
-    prompt_builder_99 = None
-    PromptBuilder99 = None
+    get_prompt_builder = None
+    prompt_builder = None
+    PromptBuilder = None
 
 # =============================================================================
 # TRY IMPORT - ROLES
@@ -325,10 +325,10 @@ except ImportError as e:
 
 try:
     from .roles import (
-        get_role_manager_99,
-        role_manager_99,
-        RoleManager99,
-        BaseRole99,
+        get_role_manager,
+        role_manager,
+        RoleManager,
+        BaseRole,
         IparRole,
         TemanKantorRole,
         PelakorRole,
@@ -337,10 +337,10 @@ try:
     logger.debug("✅ ANORA 9.9 Roles loaded")
 except ImportError as e:
     logger.error(f"❌ Failed to load Roles: {e}")
-    get_role_manager_99 = None
-    role_manager_99 = None
-    RoleManager99 = None
-    BaseRole99 = None
+    get_role_manager = None
+    role_manager = None
+    RoleManager = None
+    BaseRole = None
     IparRole = None
     TemanKantorRole = None
     PelakorRole = None
@@ -427,13 +427,13 @@ def get_anora_status() -> Dict[str, Any]:
             'relationship_manager': relationship_manager is not None,
             'conflict_engine': conflict_engine is not None,
             'worker': anora_worker is not None,
-            'brain': anora_brain_99 is not None,
+            'brain': anora_brain is not None,
             'persistent_memory': anora_persistent is not None,
-            'roleplay_ai': anora_roleplay_ai_99 is not None,
-            'roleplay_integration': anora_roleplay_99 is not None,
-            'prompt_builder': prompt_builder_99 is not None,
-            'role_manager': role_manager_99 is not None,
-            'intimacy': anora_intimacy_99 is not None,
+            'roleplay_ai': anora_roleplay_ai is not None,
+            'roleplay_integration': anora_roleplay is not None,
+            'prompt_builder': prompt_builder is not None,
+            'role_manager': role_manager is not None,
+            'intimacy': anora_intimacy is not None,
             'location': anora_location is not None,
             'places': anora_places is not None,
             'chat': anora_chat is not None,
@@ -454,10 +454,10 @@ def is_anora_ready() -> bool:
         decision_engine,
         relationship_manager,
         conflict_engine,
-        anora_brain_99,
-        anora_roleplay_ai_99,
-        anora_roleplay_99,
-        role_manager_99
+        anora_brain,
+        anora_roleplay_ai,
+        anora_roleplay,
+        role_manager
     ]
     
     return all(comp is not None for comp in required_components)
@@ -518,6 +518,6 @@ emotional = emotional_engine
 decision = decision_engine
 relationship = relationship_manager
 conflict = conflict_engine
-brain = anora_brain_99
-roleplay = anora_roleplay_99
-roles = role_manager_99
+brain = anora_brain
+roleplay = anora_roleplay
+roles = role_manager
