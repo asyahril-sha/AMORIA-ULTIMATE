@@ -4,10 +4,10 @@ Adik ipar yang tau Mas punya Nova.
 Akses konten berdasarkan level (sama seperti Nova).
 """
 
-from .base_role import BaseRole99
+from .base_role import BaseRole
 
 
-class IparRole(BaseRole99):
+class IparRole(BaseRole):
     """
     Sari - Adik ipar Mas.
     Punya rasa bersalah dan penasaran, tetapi tidak membatasi aksi.
