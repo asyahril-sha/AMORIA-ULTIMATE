@@ -24,8 +24,8 @@ from .emotional_engine import get_emotional_engine, EmotionalStyle
 from .decision_engine import get_decision_engine, ResponseCategory
 from .relationship import get_relationship_manager, RelationshipPhase
 from .conflict_engine import get_conflict_engine, ConflictType
-from .brain import get_anora_brain_99
-from .roleplay_ai import get_anora_roleplay_ai_99
+from .brain import get_anora_brain
+from .roleplay_ai import get_anora_roleplay_ai
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # STAMINA SYSTEM (REALISTIS) - DIADOPSI DARI 5.5
 # =============================================================================
 
-class StaminaSystem99:
+class StaminaSystem:
     """
     Sistem stamina realistis untuk ANORA 9.9.
     - Stamina turun setelah climax
@@ -160,13 +160,13 @@ class StaminaSystem99:
 # INTIMACY SESSION (DIADOPSI DARI 5.5)
 # =============================================================================
 
-class IntimacySession99:
+class IntimacySession:
     """
     Mengelola sesi intim - Level 11-12
     Nova bisa minta ganti posisi, minta climax di tempat tertentu.
     """
     
-    def __init__(self, stamina: StaminaSystem99):
+    def __init__(self, stamina: StaminaSystem):
         self.stamina = stamina
         self.is_active = False
         self.start_time = 0
@@ -266,27 +266,27 @@ class IntimacySession99:
 # ANORA ROLEPLAY 9.9 - MAIN CLASS
 # =============================================================================
 
-class AnoraRoleplay99:
+class AnoraRoleplay:
     """
     Roleplay Nova 9.9 yang fully integrated dengan semua engine.
     """
     
     def __init__(self):
-        self.brain = get_anora_brain_99()
-        self.ai = get_anora_roleplay_ai_99()
+        self.brain = get_anora_brain()
+        self.ai = get_anora_roleplay_ai()
         self.emotional = get_emotional_engine()
         self.relationship = get_relationship_manager()
         self.conflict = get_conflict_engine()
         
-        self.stamina = StaminaSystem99()
-        self.intimacy = IntimacySession99(self.stamina)
+        self.stamina = StaminaSystem()
+        self.intimacy = IntimacySession(self.stamina)
         
         self.is_active = False
         self.start_time = None
         self.message_count = 0
         self.last_save = 0
         
-        logger.info("🎭 AnoraRoleplay99 initialized")
+        logger.info("🎭 AnoraRoleplay initialized")
         logger.info(f"   Phase: {self.relationship.phase.value}")
         logger.info(f"   Level: {self.relationship.level}/12")
         logger.info(f"   Style: {self.emotional.get_current_style().value}")
@@ -298,30 +298,30 @@ class AnoraRoleplay99:
             from .memory_persistent import get_anora_persistent
             persistent = await get_anora_persistent()
             
-            stamina_data = await persistent.get_state('stamina_99')
+            stamina_data = await persistent.get_state('stamina')
             if stamina_data:
                 self.stamina.from_dict(json.loads(stamina_data))
             
-            intimacy_data = await persistent.get_state('intimacy_99')
+            intimacy_data = await persistent.get_state('intimacy')
             if intimacy_data:
                 self.intimacy.from_dict(json.loads(intimacy_data))
                 
-            emotional_data = await persistent.get_state('emotional_99')
+            emotional_data = await persistent.get_state('emotional')
             if emotional_data:
                 self.emotional.from_dict(json.loads(emotional_data))
                 
-            relationship_data = await persistent.get_state('relationship_99')
+            relationship_data = await persistent.get_state('relationship')
             if relationship_data:
                 self.relationship.from_dict(json.loads(relationship_data))
                 
-            conflict_data = await persistent.get_state('conflict_99')
+            conflict_data = await persistent.get_state('conflict')
             if conflict_data:
                 self.conflict.from_dict(json.loads(conflict_data))
                 
         except Exception as e:
             logger.warning(f"Could not load state: {e}")
         
-        logger.info("✅ AnoraRoleplay99 ready")
+        logger.info("✅ AnoraRoleplay ready")
     
     async def save_state(self):
         """Simpan semua state ke database"""
@@ -329,15 +329,15 @@ class AnoraRoleplay99:
             from .memory_persistent import get_anora_persistent
             persistent = await get_anora_persistent()
             
-            await persistent.set_state('stamina_99', json.dumps(self.stamina.to_dict()))
-            await persistent.set_state('intimacy_99', json.dumps(self.intimacy.to_dict()))
-            await persistent.set_state('emotional_99', json.dumps(self.emotional.to_dict()))
-            await persistent.set_state('relationship_99', json.dumps(self.relationship.to_dict()))
-            await persistent.set_state('conflict_99', json.dumps(self.conflict.to_dict()))
+            await persistent.set_state('stamina', json.dumps(self.stamina.to_dict()))
+            await persistent.set_state('intimacy', json.dumps(self.intimacy.to_dict()))
+            await persistent.set_state('emotional', json.dumps(self.emotional.to_dict()))
+            await persistent.set_state('relationship', json.dumps(self.relationship.to_dict()))
+            await persistent.set_state('conflict', json.dumps(self.conflict.to_dict()))
             await persistent.save_current_state(self.brain)
             
             self.last_save = time.time()
-            logger.debug("💾 ANORA99 state saved")
+            logger.debug("💾 ANORA 9.9 state saved")
         except Exception as e:
             logger.error(f"Error saving state: {e}")
     
@@ -614,15 +614,15 @@ class AnoraRoleplay99:
 # SINGLETON
 # =============================================================================
 
-_anora_roleplay_99: Optional['AnoraRoleplay99'] = None
+_anora_roleplay: Optional['AnoraRoleplay'] = None
 
 
-async def get_anora_roleplay_99() -> AnoraRoleplay99:
-    global _anora_roleplay_99
-    if _anora_roleplay_99 is None:
-        _anora_roleplay_99 = AnoraRoleplay99()
-        await _anora_roleplay_99.init()
-    return _anora_roleplay_99
+async def get_anora_roleplay() -> AnoraRoleplay:
+    global _anora_roleplay
+    if _anora_roleplay is None:
+        _anora_roleplay = AnoraRoleplay()
+        await _anora_roleplay.init()
+    return _anora_roleplay
 
 
-anora_roleplay_99 = get_anora_roleplay_99()
+anora_roleplay = get_anora_roleplay()
