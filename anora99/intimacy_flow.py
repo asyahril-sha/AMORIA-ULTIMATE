@@ -524,12 +524,5 @@ def get_anora_intimacy() -> IntimacyFlow:
     return _anora_intimacy
 
 
+# Singleton instance
 anora_intimacy = get_anora_intimacy()
-
-
-# =============================================================================
-# BACKWARD COMPATIBILITY (untuk yang masih panggil anora_intimacy)
-# =============================================================================
-
-# Untuk kompatibilitas dengan kode yang masih menggunakan nama anora_intimacy
-anora_intimacy = anora_intimacy
