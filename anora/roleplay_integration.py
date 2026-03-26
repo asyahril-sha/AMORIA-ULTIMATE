@@ -844,14 +844,14 @@ Kirim **/batal** buat balik ke mode chat.
             nova_clothing.append("telanjang dada")
         
         intimacy_status = ""
-    if self.intimacy.is_active:
-        intimacy_status = f"""
-🔥 **SESI INTIM AKTIF**
-- Durasi: {int(time.time() - self.intimacy.start_time)//60} menit
-- Climax: {self.intimacy.climax_count}x
-- Fase: {self.intimacy.current_phase}
-- Posisi: {self.intimacy.current_position}
-"""
+        if self.intimacy.is_active:
+            intimacy_status = f"""
+    🔥 **SESI INTIM AKTIF**
+    - Durasi: {int(time.time() - self.intimacy.start_time)//60} menit
+    - Climax: {self.intimacy.climax_count}x
+    - Fase: {self.intimacy.current_phase}
+    - Posisi: {self.intimacy.current_position}
+    """
         
         return f"""
 ╔══════════════════════════════════════════════════════════════╗
