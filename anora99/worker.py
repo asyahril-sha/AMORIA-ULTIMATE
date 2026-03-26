@@ -230,16 +230,16 @@ class AnoraWorker:
             persistent = await get_anora_persistent()
             
             # Save emotional state
-            await persistent.set_state('emotional_99', json.dumps(emo.to_dict()))
+            await persistent.set_state('emotional', json.dumps(emo.to_dict()))
             
             # Save relationship state
-            await persistent.set_state('relationship_99', json.dumps(rel.to_dict()))
+            await persistent.set_state('relationship', json.dumps(rel.to_dict()))
             
             # Save conflict state
-            await persistent.set_state('conflict_99', json.dumps(conflict.to_dict()))
+            await persistent.set_state('conflict', json.dumps(conflict.to_dict()))
             
             # Save stamina state
-            await persistent.set_state('stamina_99', json.dumps(roleplay.stamina.to_dict()))
+            await persistent.set_state('stamina', json.dumps(roleplay.stamina.to_dict()))
             
             # Save brain current state
             await persistent.save_current_state(brain)
