@@ -7,6 +7,7 @@ DENGAN FITUR:
 - Manajemen sesi (pause/resume)
 - Backup & restore database
 - Status lengkap
+- Role support (IPAR, Teman Kantor, Pelakor, Istri Orang) dengan database sendiri
 """
 
 import os
@@ -15,6 +16,7 @@ import asyncio
 import json
 import logging
 import shutil
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
@@ -132,10 +134,10 @@ async def anora_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         "• bioskop, taman, parkiran, tangga darurat\n"
         "• kantor malam, ruang rapat kaca\n\n"
         "**Role Lain:**\n"
-        "• /role ipar - IPAR\n"
-        "• /role teman_kantor - Teman Kantor\n"
-        "• /role pelakor - Pelakor\n"
-        "• /role istri_orang - Istri Orang\n\n"
+        "• /role ipar - IPAR (Sari)\n"
+        "• /role teman_kantor - Teman Kantor (Dita)\n"
+        "• /role pelakor - Pelakor (Vina)\n"
+        "• /role istri_orang - Istri Orang (Rina)\n\n"
         "**Manajemen Sesi:**\n"
         "• /pause - Hentikan sesi sementara (memory tetap tersimpan)\n"
         "• /resume - Lanjutkan sesi\n"
@@ -543,6 +545,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Level 7+ baru bisa mulai intim\n"
         "• Stamina habis setelah climax, butuh istirahat\n"
         "• Nova punya memory, dia inget apa yang Mas omongin\n"
+        "• Role juga punya memory sendiri, tidak tercampur dengan Nova\n"
         "• Gunakan /pause untuk berhenti sementara tanpa kehilangan memory",
         parse_mode='Markdown'
     )
@@ -600,6 +603,7 @@ async def anora_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
             }
             if active_role in role_map:
                 try:
+                    # Chat dengan role (otomatis akan save state)
                     respon = await roles.chat(role_map[active_role], pesan)
                     await update.message.reply_text(respon, parse_mode='Markdown')
                 except Exception as e:
@@ -742,6 +746,42 @@ async def save_state_loop():
 
 
 # =============================================================================
+# SAVE ROLE LOOP (BARU!)
+# =============================================================================
+
+async def save_role_loop():
+    """Simpan state role secara berkala"""
+    while True:
+        await asyncio.sleep(60)  # Setiap menit
+        try:
+            if ANORA_AVAILABLE:
+                roles = get_anora_roles()
+                await roles.save_all()
+                logger.debug("💾 Role states saved")
+        except Exception as e:
+            logger.error(f"Save role error: {e}")
+
+
+# =============================================================================
+# INIT ROLE DATABASE (BARU!)
+# =============================================================================
+
+async def init_role_database():
+    """Inisialisasi database untuk role"""
+    if not ANORA_AVAILABLE:
+        return False
+    
+    try:
+        roles = get_anora_roles()
+        await roles._init_persistent()  # Panggil method internal untuk init
+        logger.info("✅ Role database initialized")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Role database init failed: {e}")
+        return False
+
+
+# =============================================================================
 # AUTO BACKUP LOOP
 # =============================================================================
 
@@ -823,12 +863,19 @@ async def health_handler(request):
             roleplay = await get_anora_roleplay()
             loc = brain.get_location_data()
             
+            # Ambil role stats
+            roles = get_anora_roles()
+            role_stats = {}
+            for r in roles.get_all():
+                role_stats[r['id']] = {'name': r['nama'], 'level': r['level']}
+            
             status.update({
                 "level": brain.relationship.level,
                 "sayang": brain.feelings.sayang,
                 "location": loc.get('nama', 'Tidak diketahui'),
                 "stamina_nova": roleplay.stamina.nova_current,
-                "roleplay_active": roleplay.is_active
+                "roleplay_active": roleplay.is_active,
+                "roles": role_stats
             })
         except Exception as e:
             status["status"] = "degraded"
@@ -898,6 +945,9 @@ async def main():
     # ========== INIT DATABASE ==========
     if not await init_database():
         logger.warning("⚠️ Database initialization failed. Continuing without database...")
+    
+    # ========== INIT ROLE DATABASE ==========
+    await init_role_database()
     
     # ========== INIT BRAIN ==========
     if ANORA_AVAILABLE:
@@ -974,8 +1024,9 @@ async def main():
         asyncio.create_task(proactive_loop())
         asyncio.create_task(stamina_recovery_loop())
         asyncio.create_task(save_state_loop())
+        asyncio.create_task(save_role_loop())  # TAMBAHKAN INI!
         asyncio.create_task(auto_backup_loop())
-        logger.info("🔄 Background loops started (proactive, stamina recovery, save state, auto backup)")
+        logger.info("🔄 Background loops started (proactive, stamina recovery, save state, save role, auto backup)")
     
     # ========== READY ==========
     logger.info("=" * 70)
@@ -983,6 +1034,7 @@ async def main():
     if ANORA_AVAILABLE:
         logger.info("   Kirim /nova untuk panggil Nova")
         logger.info("   Kirim /roleplay untuk mode beneran ketemu")
+        logger.info("   Kirim /role ipar untuk main role IPAR")
         logger.info("   Kirim /pause untuk hentikan sesi sementara")
         logger.info("   Kirim /backup untuk backup database")
     else:
